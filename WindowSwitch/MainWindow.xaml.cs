@@ -25,6 +25,7 @@ public partial class MainWindow : Window
     private const int WhMouseLl = 14;
     private const int HcAction = 0;
     private const int WmHotkey = 0x0312;
+    private const int WmNchitTest = 0x0084;
     private const int WmKeyDown = 0x0100;
     private const int WmSysKeyDown = 0x0104;
     private const int WmMouseMove = 0x0200;
@@ -52,6 +53,16 @@ public partial class MainWindow : Window
     private const uint SwpNoZOrder = 0x0004;
     private const uint SwpNoActivate = 0x0010;
     private const uint SwpFrameChanged = 0x0020;
+    private const int HtClient = 1;
+    private const int HtLeft = 10;
+    private const int HtRight = 11;
+    private const int HtTop = 12;
+    private const int HtTopLeft = 13;
+    private const int HtTopRight = 14;
+    private const int HtBottom = 15;
+    private const int HtBottomLeft = 16;
+    private const int HtBottomRight = 17;
+    private const int ResizeBorderThickness = 8;
     private const int XButton1 = 0x0001;
     private const int XButton2 = 0x0002;
     private static readonly IntPtr HwndTopMost = new(-1);
@@ -678,6 +689,12 @@ public partial class MainWindow : Window
 
     private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
     {
+        if (msg == WmNchitTest)
+        {
+            handled = TryHandleNchitTest(lParam, out var hitTest);
+            return hitTest;
+        }
+
         if (msg != WmHotkey)
         {
             return IntPtr.Zero;
@@ -696,6 +713,49 @@ public partial class MainWindow : Window
         }
 
         return IntPtr.Zero;
+    }
+
+    private bool TryHandleNchitTest(IntPtr lParam, out IntPtr hitTest)
+    {
+        hitTest = IntPtr.Zero;
+        if (_windowHandle == IntPtr.Zero)
+        {
+            return false;
+        }
+
+        var screenPoint = GetPointFromLParam(lParam);
+        var transform = PresentationSource.FromVisual(this)?.CompositionTarget?.TransformFromDevice
+            ?? Matrix.Identity;
+        var point = transform.Transform(screenPoint);
+        var left = Left;
+        var top = Top;
+        var right = left + ActualWidth;
+        var bottom = top + ActualHeight;
+
+        if (point.X < left || point.X > right || point.Y < top || point.Y > bottom)
+        {
+            return false;
+        }
+
+        var onLeft = point.X <= left + ResizeBorderThickness;
+        var onRight = point.X >= right - ResizeBorderThickness;
+        var onTop = point.Y <= top + ResizeBorderThickness;
+        var onBottom = point.Y >= bottom - ResizeBorderThickness;
+
+        hitTest = (onLeft, onRight, onTop, onBottom) switch
+        {
+            (true, false, true, false) => new IntPtr(HtTopLeft),
+            (false, true, true, false) => new IntPtr(HtTopRight),
+            (true, false, false, true) => new IntPtr(HtBottomLeft),
+            (false, true, false, true) => new IntPtr(HtBottomRight),
+            (true, false, false, false) => new IntPtr(HtLeft),
+            (false, true, false, false) => new IntPtr(HtRight),
+            (false, false, true, false) => new IntPtr(HtTop),
+            (false, false, false, true) => new IntPtr(HtBottom),
+            _ => new IntPtr(HtClient),
+        };
+
+        return true;
     }
 
     private void RegisterDesktopDigitHotkey(int digit, List<string> failedHotkeys)
@@ -872,16 +932,12 @@ public partial class MainWindow : Window
         out bool isDown,
         out bool isUp)
     {
-        isDown = message is WmLeftButtonDown or WmRightButtonDown or WmMiddleButtonDown or WmXButtonDown;
-        isUp = message is WmLeftButtonUp or WmRightButtonUp or WmMiddleButtonUp or WmXButtonUp;
-        button = MouseHotkeyButton.Left;
+        isDown = message is WmRightButtonDown or WmMiddleButtonDown or WmXButtonDown;
+        isUp = message is WmRightButtonUp or WmMiddleButtonUp or WmXButtonUp;
+        button = MouseHotkeyButton.Middle;
 
         switch (message)
         {
-            case WmLeftButtonDown:
-            case WmLeftButtonUp:
-                button = MouseHotkeyButton.Left;
-                return true;
             case WmRightButtonDown:
             case WmRightButtonUp:
                 button = MouseHotkeyButton.Right;
@@ -1073,6 +1129,14 @@ public partial class MainWindow : Window
     private delegate IntPtr LowLevelKeyboardProc(int nCode, IntPtr wParam, IntPtr lParam);
 
     private delegate IntPtr LowLevelMouseProc(int nCode, IntPtr wParam, IntPtr lParam);
+
+    private static System.Windows.Point GetPointFromLParam(IntPtr lParam)
+    {
+        var value = lParam.ToInt64();
+        var x = unchecked((short)(value & 0xFFFF));
+        var y = unchecked((short)((value >> 16) & 0xFFFF));
+        return new System.Windows.Point(x, y);
+    }
 
     [StructLayout(LayoutKind.Sequential)]
     private readonly struct NativePoint

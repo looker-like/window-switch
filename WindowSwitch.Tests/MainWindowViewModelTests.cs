@@ -164,6 +164,22 @@ public sealed class MainWindowViewModelTests
     }
 
     [Fact]
+    public void LeftMouseButtonIsNotAcceptedAsConfiguredShowHotkey()
+    {
+        var fake = new FakeVirtualDesktopService();
+        var settings = new WindowSettings(
+            10,
+            20,
+            showHotkeyKind: (int)ShowHotkeyKind.MouseButton,
+            showHotkeyMouseButton: (int)MouseHotkeyButton.Left);
+
+        using var viewModel = new MainWindowViewModel(fake, settings);
+
+        Assert.Equal(HotkeyDefinitions.DefaultShowHotkeyMouseButton, viewModel.ShowHotkeyMouseButton);
+        Assert.Equal("鼠标中键", viewModel.HotkeyText);
+    }
+
+    [Fact]
     public void CapturedKeyboardHotkeyUpdatesDisplayText()
     {
         using var viewModel = new MainWindowViewModel(new FakeVirtualDesktopService());

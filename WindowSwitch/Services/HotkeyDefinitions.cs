@@ -74,7 +74,8 @@ public static class HotkeyDefinitions
 
     public static MouseHotkeyButton NormalizeMouseButton(int button)
     {
-        return Enum.IsDefined(typeof(MouseHotkeyButton), button)
+        return Enum.IsDefined(typeof(MouseHotkeyButton), button) &&
+            (MouseHotkeyButton)button != MouseHotkeyButton.Left
             ? (MouseHotkeyButton)button
             : DefaultShowHotkeyMouseButton;
     }
