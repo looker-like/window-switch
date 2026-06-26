@@ -12,6 +12,7 @@
         WindowStyle="None"
         ResizeMode="NoResize"
         AllowsTransparency="True"
+        ShowActivated="False"
         Background="Transparent">
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
@@ -173,14 +174,14 @@
                                    FontFamily="Segoe MDL2 Assets"
                                    FontSize="13" />
                     </ToggleButton>
-                    <Button x:Name="SettingsButton"
-                            Style="{StaticResource HeaderIconButtonStyle}"
-                            ToolTip="设置"
-                            Click="SettingsButton_Click">
+                    <ToggleButton x:Name="SettingsButton"
+                                  Style="{StaticResource HeaderIconButtonStyle}"
+                                  ToolTip="设置"
+                                  Click="SettingsButton_Click">
                         <TextBlock Text="&#xE713;"
                                    FontFamily="Segoe MDL2 Assets"
                                    FontSize="13" />
-                    </Button>
+                    </ToggleButton>
                     <Button Style="{StaticResource HeaderIconButtonStyle}"
                             ToolTip="隐藏到后台"
                             Click="CloseButton_Click">
@@ -190,74 +191,61 @@
                     </Button>
                 </StackPanel>
 
-                <Popup x:Name="SettingsPopup"
-                       Grid.Column="1"
-                       PlacementTarget="{Binding ElementName=SettingsButton}"
-                       Placement="Bottom"
-                       HorizontalOffset="-214"
-                       VerticalOffset="6"
-                       StaysOpen="False"
-                       AllowsTransparency="True">
-                    <Border Width="260"
-                            Padding="12"
-                            Background="#FFFFFFFF"
-                            BorderBrush="#D5DEE8"
-                            BorderThickness="1"
-                            CornerRadius="8"
-                            SnapsToDevicePixels="True">
-                        <Border.Effect>
-                            <DropShadowEffect BlurRadius="16"
-                                              ShadowDepth="3"
-                                              Direction="270"
-                                              Opacity="0.18"
-                                              Color="#1F2937" />
-                        </Border.Effect>
-                        <StackPanel>
-                            <TextBlock Text="设置"
-                                       Margin="0,0,0,10"
-                                       FontSize="13"
-                                       FontWeight="SemiBold"
-                                       Foreground="#1F2937" />
-
-                            <CheckBox Content="启动后隐藏到后台"
-                                      IsChecked="{Binding StartHidden, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                      Margin="0,0,0,8"
-                                      Foreground="#2F3A4A" />
-
-                            <CheckBox Content="切换后自动隐藏"
-                                      IsChecked="{Binding AutoHideAfterSwitch, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                      Margin="0,0,0,8"
-                                      Foreground="#2F3A4A" />
-
-                            <CheckBox IsChecked="{Binding IsHotkeyEnabled, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                      Margin="0,0,0,12"
-                                      Foreground="#2F3A4A">
-                                <TextBlock Text="{Binding HotkeyText, StringFormat=启用快捷键 {0}}" />
-                            </CheckBox>
-
-                            <DockPanel Margin="0,0,0,12">
-                                <TextBlock Text="每行列数"
-                                           Style="{StaticResource SettingsLabelStyle}" />
-                                <ComboBox DockPanel.Dock="Right"
-                                          Width="74"
-                                          ItemsSource="{Binding ColumnOptions}"
-                                          SelectedItem="{Binding ColumnsPerRow, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                            </DockPanel>
-
-                            <TextBlock Text="{Binding WindowOpacityPercent, StringFormat=透明度 {0}%}"
-                                       Style="{StaticResource SettingsLabelStyle}"
-                                       Margin="0,0,0,4" />
-                            <Slider Minimum="0.35"
-                                    Maximum="1"
-                                    TickFrequency="0.05"
-                                    SmallChange="0.05"
-                                    LargeChange="0.1"
-                                    IsSnapToTickEnabled="False"
-                                    Value="{Binding WindowOpacity, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                        </StackPanel>
-                    </Border>
-                </Popup>
             </Grid>
+
+            <Border x:Name="SettingsPanel"
+                    Visibility="Collapsed"
+                    Margin="2,0,2,10"
+                    Padding="12"
+                    Background="#FFFFFFFF"
+                    BorderBrush="#D5DEE8"
+                    BorderThickness="1"
+                    CornerRadius="8"
+                    SnapsToDevicePixels="True">
+                <StackPanel>
+                    <TextBlock Text="设置"
+                               Margin="0,0,0,10"
+                               FontSize="13"
+                               FontWeight="SemiBold"
+                               Foreground="#1F2937" />
+
+                    <CheckBox Content="启动后隐藏到后台"
+                              IsChecked="{Binding StartHidden, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                              Margin="0,0,0,8"
+                              Foreground="#2F3A4A" />
+
+                    <CheckBox Content="切换后自动隐藏"
+                              IsChecked="{Binding AutoHideAfterSwitch, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                              Margin="0,0,0,8"
+                              Foreground="#2F3A4A" />
+
+                    <CheckBox IsChecked="{Binding IsHotkeyEnabled, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                              Margin="0,0,0,12"
+                              Foreground="#2F3A4A">
+                        <TextBlock Text="{Binding HotkeyText, StringFormat=启用快捷键 {0}}" />
+                    </CheckBox>
+
+                    <DockPanel Margin="0,0,0,12">
+                        <TextBlock Text="每行列数"
+                                   Style="{StaticResource SettingsLabelStyle}" />
+                        <ComboBox DockPanel.Dock="Right"
+                                  Width="74"
+                                  ItemsSource="{Binding ColumnOptions}"
+                                  SelectedItem="{Binding ColumnsPerRow, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                    </DockPanel>
+
+                    <TextBlock Text="{Binding WindowOpacityPercent, StringFormat=透明度 {0}%}"
+                               Style="{StaticResource SettingsLabelStyle}"
+                               Margin="0,0,0,4" />
+                    <Slider Minimum="0.35"
+                            Maximum="1"
+                            TickFrequency="0.05"
+                            SmallChange="0.05"
+                            LargeChange="0.1"
+                            IsSnapToTickEnabled="False"
+                            Value="{Binding WindowOpacity, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                </StackPanel>
+            </Border>
 
             <ItemsControl ItemsSource="{Binding Desktops}">
                 <ItemsControl.ItemsPanel>

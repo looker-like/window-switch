@@ -22,6 +22,17 @@ public partial class MainWindow : Window
     private const uint ModAlt = 0x0001;
     private const uint ModControl = 0x0002;
     private const uint VkSpace = 0x20;
+    private const int GwlExStyle = -20;
+    private const int WsExToolWindow = 0x00000080;
+    private const int WsExAppWindow = 0x00040000;
+    private const int WsExNoActivate = 0x08000000;
+    private const uint SwpNoSize = 0x0001;
+    private const uint SwpNoMove = 0x0002;
+    private const uint SwpNoZOrder = 0x0004;
+    private const uint SwpNoActivate = 0x0010;
+    private const uint SwpFrameChanged = 0x0020;
+    private static readonly IntPtr HwndTopMost = new(-1);
+    private static readonly IntPtr HwndNoTopMost = new(-2);
 
     private readonly IWindowSettingsStore _settingsStore;
     private readonly DispatcherTimer _refreshTimer;
@@ -34,6 +45,7 @@ public partial class MainWindow : Window
     private bool _isHotkeyRegistered;
     private bool _isExitRequested;
     private bool _hasAppliedInitialVisibility;
+    private bool _hasPinnedWindowToAllDesktops;
 
     public MainWindow(MainWindowViewModel viewModel, IWindowSettingsStore settingsStore, WindowSettings initialSettings)
     {
@@ -51,7 +63,6 @@ public partial class MainWindow : Window
         _refreshTimer.Tick += (_, _) =>
         {
             _viewModel.Refresh();
-            EnsureVisibleOnAllVirtualDesktops();
         };
 
         _settingsSaveTimer = new DispatcherTimer(DispatcherPriority.Background, Dispatcher)
@@ -80,8 +91,9 @@ public partial class MainWindow : Window
         _hwndSource = HwndSource.FromHwnd(_windowHandle);
         _hwndSource?.AddHook(WndProc);
 
+        ApplyAltTabHiddenWindowStyles();
         ApplyHotkeyRegistration();
-        EnsureVisibleOnAllVirtualDesktops();
+        PinWindowToAllVirtualDesktops();
     }
 
     private void MainWindow_Loaded(object sender, RoutedEventArgs e)
@@ -89,8 +101,7 @@ public partial class MainWindow : Window
         ApplyWindowPosition();
         ApplyRuntimeSettings();
         _viewModel.Refresh();
-        EnsureVisibleOnAllVirtualDesktops();
-        _refreshTimer.Start();
+        PinWindowToAllVirtualDesktops();
 
         if (!_hasAppliedInitialVisibility)
         {
@@ -98,8 +109,11 @@ public partial class MainWindow : Window
             if (_viewModel.StartHidden)
             {
                 Dispatcher.BeginInvoke(HideToBackground, DispatcherPriority.ApplicationIdle);
+                return;
             }
         }
+
+        StartRefreshTimer();
     }
 
     private void MainWindow_Closing(object? sender, System.ComponentModel.CancelEventArgs e)
@@ -138,7 +152,7 @@ public partial class MainWindow : Window
 
     private void SettingsButton_Click(object sender, RoutedEventArgs e)
     {
-        SettingsPopup.IsOpen = !SettingsPopup.IsOpen;
+        SettingsPanel.Visibility = SettingsButton.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private void ApplyWindowPosition()
@@ -162,14 +176,16 @@ public partial class MainWindow : Window
         WindowState = WindowState.Normal;
         PositionCenterOnMouse();
         ApplyRuntimeSettings();
-        EnsureVisibleOnAllVirtualDesktops();
-        Activate();
-        Focus();
+        ApplyAltTabHiddenWindowStyles();
+        PinWindowToAllVirtualDesktops();
+        _viewModel.Refresh();
+        StartRefreshTimer();
     }
 
     public void HideToBackground()
     {
-        SettingsPopup.IsOpen = false;
+        CloseSettingsPanel();
+        _refreshTimer.Stop();
         Hide();
         SaveCurrentSettings();
     }
@@ -211,7 +227,7 @@ public partial class MainWindow : Window
 
     private void ViewModel_DesktopSwitchCompleted(object? sender, EventArgs e)
     {
-        EnsureVisibleOnAllVirtualDesktops();
+        PinWindowToAllVirtualDesktops();
         if (_viewModel.AutoHideAfterSwitch)
         {
             HideToBackground();
@@ -222,6 +238,15 @@ public partial class MainWindow : Window
     {
         Topmost = _viewModel.IsFloatingTopmost;
         Opacity = _viewModel.WindowOpacity;
+        ApplyTopmostWithoutActivation();
+    }
+
+    private void StartRefreshTimer()
+    {
+        if (!_refreshTimer.IsEnabled)
+        {
+            _refreshTimer.Start();
+        }
     }
 
     private void ScheduleSettingsSave()
@@ -271,9 +296,9 @@ public partial class MainWindow : Window
         Top = Math.Min(Math.Max(targetTop, minTop), maxTop);
     }
 
-    private void EnsureVisibleOnAllVirtualDesktops()
+    private void PinWindowToAllVirtualDesktops()
     {
-        if (_windowHandle == IntPtr.Zero)
+        if (_windowHandle == IntPtr.Zero || _hasPinnedWindowToAllDesktops)
         {
             return;
         }
@@ -285,7 +310,8 @@ public partial class MainWindow : Window
                 VirtualDesktop.PinWindow(_windowHandle);
             }
 
-            if (!VirtualDesktop.IsPinnedWindow(_windowHandle))
+            _hasPinnedWindowToAllDesktops = VirtualDesktop.IsPinnedWindow(_windowHandle);
+            if (!_hasPinnedWindowToAllDesktops)
             {
                 _viewModel.SetStatus("窗口跨虚拟桌面显示未生效：系统没有确认该窗口已固定到所有桌面。");
             }
@@ -294,6 +320,50 @@ public partial class MainWindow : Window
         {
             _viewModel.SetStatus($"窗口跨虚拟桌面显示失败：{ex.Message}");
         }
+    }
+
+    private void ApplyAltTabHiddenWindowStyles()
+    {
+        if (_windowHandle == IntPtr.Zero)
+        {
+            return;
+        }
+
+        var exStyle = GetWindowLongPtr(_windowHandle, GwlExStyle).ToInt64();
+        exStyle |= WsExToolWindow | WsExNoActivate;
+        exStyle &= ~WsExAppWindow;
+        SetWindowLongPtr(_windowHandle, GwlExStyle, new IntPtr(exStyle));
+        SetWindowPos(
+            _windowHandle,
+            IntPtr.Zero,
+            0,
+            0,
+            0,
+            0,
+            SwpNoMove | SwpNoSize | SwpNoZOrder | SwpNoActivate | SwpFrameChanged);
+    }
+
+    private void ApplyTopmostWithoutActivation()
+    {
+        if (_windowHandle == IntPtr.Zero)
+        {
+            return;
+        }
+
+        SetWindowPos(
+            _windowHandle,
+            _viewModel.IsFloatingTopmost ? HwndTopMost : HwndNoTopMost,
+            0,
+            0,
+            0,
+            0,
+            SwpNoMove | SwpNoSize | SwpNoActivate);
+    }
+
+    private void CloseSettingsPanel()
+    {
+        SettingsButton.IsChecked = false;
+        SettingsPanel.Visibility = Visibility.Collapsed;
     }
 
     private void ApplyHotkeyRegistration()
@@ -395,4 +465,20 @@ public partial class MainWindow : Window
 
     [DllImport("user32.dll", SetLastError = true)]
     private static extern bool UnregisterHotKey(IntPtr hWnd, int id);
+
+    [DllImport("user32.dll", EntryPoint = "GetWindowLongPtrW", SetLastError = true)]
+    private static extern IntPtr GetWindowLongPtr(IntPtr hWnd, int nIndex);
+
+    [DllImport("user32.dll", EntryPoint = "SetWindowLongPtrW", SetLastError = true)]
+    private static extern IntPtr SetWindowLongPtr(IntPtr hWnd, int nIndex, IntPtr dwNewLong);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool SetWindowPos(
+        IntPtr hWnd,
+        IntPtr hWndInsertAfter,
+        int x,
+        int y,
+        int cx,
+        int cy,
+        uint flags);
 }
