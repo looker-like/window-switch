@@ -1,0 +1,398 @@
+using System.Windows;
+using System.ComponentModel;
+using System.Windows.Controls;
+using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Controls.Primitives;
+using System.Windows.Interop;
+using System.Windows.Threading;
+using System.Runtime.InteropServices;
+using WindowSwitch.Services;
+using WindowSwitch.ViewModels;
+using WindowsDesktop;
+using Forms = System.Windows.Forms;
+using Drawing = System.Drawing;
+
+namespace WindowSwitch;
+
+public partial class MainWindow : Window
+{
+    private const int HotkeyId = 0x5753;
+    private const int WmHotkey = 0x0312;
+    private const uint ModAlt = 0x0001;
+    private const uint ModControl = 0x0002;
+    private const uint VkSpace = 0x20;
+
+    private readonly IWindowSettingsStore _settingsStore;
+    private readonly DispatcherTimer _refreshTimer;
+    private readonly DispatcherTimer _settingsSaveTimer;
+    private readonly MainWindowViewModel _viewModel;
+    private readonly WindowSettings _initialSettings;
+    private readonly Forms.NotifyIcon _notifyIcon;
+    private HwndSource? _hwndSource;
+    private IntPtr _windowHandle;
+    private bool _isHotkeyRegistered;
+    private bool _isExitRequested;
+    private bool _hasAppliedInitialVisibility;
+
+    public MainWindow(MainWindowViewModel viewModel, IWindowSettingsStore settingsStore, WindowSettings initialSettings)
+    {
+        _viewModel = viewModel;
+        _settingsStore = settingsStore;
+        _initialSettings = initialSettings;
+
+        InitializeComponent();
+        DataContext = viewModel;
+
+        _refreshTimer = new DispatcherTimer(DispatcherPriority.Background, Dispatcher)
+        {
+            Interval = TimeSpan.FromSeconds(1),
+        };
+        _refreshTimer.Tick += (_, _) =>
+        {
+            _viewModel.Refresh();
+            EnsureVisibleOnAllVirtualDesktops();
+        };
+
+        _settingsSaveTimer = new DispatcherTimer(DispatcherPriority.Background, Dispatcher)
+        {
+            Interval = TimeSpan.FromMilliseconds(500),
+        };
+        _settingsSaveTimer.Tick += (_, _) =>
+        {
+            _settingsSaveTimer.Stop();
+            SaveCurrentSettings();
+        };
+
+        SourceInitialized += MainWindow_SourceInitialized;
+        Loaded += MainWindow_Loaded;
+        Closing += MainWindow_Closing;
+        LocationChanged += (_, _) => ScheduleSettingsSave();
+        _viewModel.PropertyChanged += ViewModel_PropertyChanged;
+        _viewModel.DesktopSwitchCompleted += ViewModel_DesktopSwitchCompleted;
+
+        _notifyIcon = CreateNotifyIcon();
+    }
+
+    private void MainWindow_SourceInitialized(object? sender, EventArgs e)
+    {
+        _windowHandle = new WindowInteropHelper(this).Handle;
+        _hwndSource = HwndSource.FromHwnd(_windowHandle);
+        _hwndSource?.AddHook(WndProc);
+
+        ApplyHotkeyRegistration();
+        EnsureVisibleOnAllVirtualDesktops();
+    }
+
+    private void MainWindow_Loaded(object sender, RoutedEventArgs e)
+    {
+        ApplyWindowPosition();
+        ApplyRuntimeSettings();
+        _viewModel.Refresh();
+        EnsureVisibleOnAllVirtualDesktops();
+        _refreshTimer.Start();
+
+        if (!_hasAppliedInitialVisibility)
+        {
+            _hasAppliedInitialVisibility = true;
+            if (_viewModel.StartHidden)
+            {
+                Dispatcher.BeginInvoke(HideToBackground, DispatcherPriority.ApplicationIdle);
+            }
+        }
+    }
+
+    private void MainWindow_Closing(object? sender, System.ComponentModel.CancelEventArgs e)
+    {
+        if (!_isExitRequested)
+        {
+            e.Cancel = true;
+            HideToBackground();
+            return;
+        }
+
+        TearDown();
+    }
+
+    private void RootChrome_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ButtonState != MouseButtonState.Pressed || IsInsideButton(e.OriginalSource))
+        {
+            return;
+        }
+
+        try
+        {
+            DragMove();
+        }
+        catch (InvalidOperationException)
+        {
+            // DragMove can throw if the mouse state changes during the drag.
+        }
+    }
+
+    private void CloseButton_Click(object sender, RoutedEventArgs e)
+    {
+        HideToBackground();
+    }
+
+    private void SettingsButton_Click(object sender, RoutedEventArgs e)
+    {
+        SettingsPopup.IsOpen = !SettingsPopup.IsOpen;
+    }
+
+    private void ApplyWindowPosition()
+    {
+        if (IsReasonablePosition(_initialSettings.Left, _initialSettings.Top))
+        {
+            Left = _initialSettings.Left;
+            Top = _initialSettings.Top;
+            return;
+        }
+
+        UpdateLayout();
+        var workArea = SystemParameters.WorkArea;
+        Left = Math.Max(workArea.Left + 12, workArea.Right - ActualWidth - 24);
+        Top = workArea.Top + 80;
+    }
+
+    public void ShowFromBackground()
+    {
+        Show();
+        WindowState = WindowState.Normal;
+        PositionCenterOnMouse();
+        ApplyRuntimeSettings();
+        EnsureVisibleOnAllVirtualDesktops();
+        Activate();
+        Focus();
+    }
+
+    public void HideToBackground()
+    {
+        SettingsPopup.IsOpen = false;
+        Hide();
+        SaveCurrentSettings();
+    }
+
+    private static bool IsReasonablePosition(double left, double top)
+    {
+        if (double.IsNaN(left) || double.IsInfinity(left) ||
+            double.IsNaN(top) || double.IsInfinity(top))
+        {
+            return false;
+        }
+
+        var minLeft = SystemParameters.VirtualScreenLeft - 64;
+        var maxLeft = SystemParameters.VirtualScreenLeft + SystemParameters.VirtualScreenWidth - 64;
+        var minTop = SystemParameters.VirtualScreenTop - 64;
+        var maxTop = SystemParameters.VirtualScreenTop + SystemParameters.VirtualScreenHeight - 64;
+
+        return left >= minLeft && left <= maxLeft && top >= minTop && top <= maxTop;
+    }
+
+    private void ViewModel_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(MainWindowViewModel.IsFloatingTopmost) or
+            nameof(MainWindowViewModel.ColumnsPerRow) or
+            nameof(MainWindowViewModel.WindowOpacity) or
+            nameof(MainWindowViewModel.StartHidden) or
+            nameof(MainWindowViewModel.AutoHideAfterSwitch) or
+            nameof(MainWindowViewModel.IsHotkeyEnabled))
+        {
+            ApplyRuntimeSettings();
+            if (e.PropertyName == nameof(MainWindowViewModel.IsHotkeyEnabled))
+            {
+                ApplyHotkeyRegistration();
+            }
+
+            ScheduleSettingsSave();
+        }
+    }
+
+    private void ViewModel_DesktopSwitchCompleted(object? sender, EventArgs e)
+    {
+        EnsureVisibleOnAllVirtualDesktops();
+        if (_viewModel.AutoHideAfterSwitch)
+        {
+            HideToBackground();
+        }
+    }
+
+    private void ApplyRuntimeSettings()
+    {
+        Topmost = _viewModel.IsFloatingTopmost;
+        Opacity = _viewModel.WindowOpacity;
+    }
+
+    private void ScheduleSettingsSave()
+    {
+        if (!IsLoaded)
+        {
+            return;
+        }
+
+        _settingsSaveTimer.Stop();
+        _settingsSaveTimer.Start();
+    }
+
+    private void SaveCurrentSettings()
+    {
+        _settingsStore.Save(new WindowSettings(
+            Left,
+            Top,
+            _viewModel.IsFloatingTopmost,
+            _viewModel.ColumnsPerRow,
+            _viewModel.WindowOpacity,
+            _viewModel.StartHidden,
+            _viewModel.AutoHideAfterSwitch,
+            _viewModel.IsHotkeyEnabled));
+    }
+
+    private void PositionCenterOnMouse()
+    {
+        UpdateLayout();
+
+        var mouse = Forms.Cursor.Position;
+        var transform = PresentationSource.FromVisual(this)?.CompositionTarget?.TransformFromDevice
+            ?? Matrix.Identity;
+        var center = transform.Transform(new System.Windows.Point(mouse.X, mouse.Y));
+
+        var width = ActualWidth > 0 ? ActualWidth : Width;
+        var height = ActualHeight > 0 ? ActualHeight : Height;
+        var targetLeft = center.X - width / 2;
+        var targetTop = center.Y - height / 2;
+
+        var minLeft = SystemParameters.VirtualScreenLeft;
+        var maxLeft = SystemParameters.VirtualScreenLeft + SystemParameters.VirtualScreenWidth - width;
+        var minTop = SystemParameters.VirtualScreenTop;
+        var maxTop = SystemParameters.VirtualScreenTop + SystemParameters.VirtualScreenHeight - height;
+
+        Left = Math.Min(Math.Max(targetLeft, minLeft), maxLeft);
+        Top = Math.Min(Math.Max(targetTop, minTop), maxTop);
+    }
+
+    private void EnsureVisibleOnAllVirtualDesktops()
+    {
+        if (_windowHandle == IntPtr.Zero)
+        {
+            return;
+        }
+
+        try
+        {
+            if (!VirtualDesktop.IsPinnedWindow(_windowHandle))
+            {
+                VirtualDesktop.PinWindow(_windowHandle);
+            }
+
+            if (!VirtualDesktop.IsPinnedWindow(_windowHandle))
+            {
+                _viewModel.SetStatus("窗口跨虚拟桌面显示未生效：系统没有确认该窗口已固定到所有桌面。");
+            }
+        }
+        catch (Exception ex)
+        {
+            _viewModel.SetStatus($"窗口跨虚拟桌面显示失败：{ex.Message}");
+        }
+    }
+
+    private void ApplyHotkeyRegistration()
+    {
+        if (_windowHandle == IntPtr.Zero)
+        {
+            return;
+        }
+
+        if (_isHotkeyRegistered)
+        {
+            UnregisterHotKey(_windowHandle, HotkeyId);
+            _isHotkeyRegistered = false;
+        }
+
+        if (!_viewModel.IsHotkeyEnabled)
+        {
+            return;
+        }
+
+        _isHotkeyRegistered = RegisterHotKey(_windowHandle, HotkeyId, ModControl | ModAlt, VkSpace);
+        if (!_isHotkeyRegistered)
+        {
+            _viewModel.SetStatus("快捷键 Ctrl + Alt + Space 注册失败，可能已被其他应用占用。");
+        }
+    }
+
+    private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
+    {
+        if (msg == WmHotkey && wParam.ToInt32() == HotkeyId)
+        {
+            ShowFromBackground();
+            handled = true;
+        }
+
+        return IntPtr.Zero;
+    }
+
+    private Forms.NotifyIcon CreateNotifyIcon()
+    {
+        var menu = new Forms.ContextMenuStrip();
+        menu.Items.Add("显示", null, (_, _) => Dispatcher.Invoke(ShowFromBackground));
+        menu.Items.Add("退出", null, (_, _) => Dispatcher.Invoke(ExitApplication));
+
+        var notifyIcon = new Forms.NotifyIcon
+        {
+            Icon = Drawing.SystemIcons.Application,
+            Text = "WindowSwitch",
+            Visible = true,
+            ContextMenuStrip = menu,
+        };
+
+        notifyIcon.DoubleClick += (_, _) => Dispatcher.Invoke(ShowFromBackground);
+        return notifyIcon;
+    }
+
+    private void ExitApplication()
+    {
+        _isExitRequested = true;
+        Close();
+    }
+
+    private void TearDown()
+    {
+        _refreshTimer.Stop();
+        _settingsSaveTimer.Stop();
+        _viewModel.PropertyChanged -= ViewModel_PropertyChanged;
+        _viewModel.DesktopSwitchCompleted -= ViewModel_DesktopSwitchCompleted;
+        _hwndSource?.RemoveHook(WndProc);
+        if (_isHotkeyRegistered && _windowHandle != IntPtr.Zero)
+        {
+            UnregisterHotKey(_windowHandle, HotkeyId);
+            _isHotkeyRegistered = false;
+        }
+
+        SaveCurrentSettings();
+        _notifyIcon.Visible = false;
+        _notifyIcon.Dispose();
+    }
+
+    private static bool IsInsideButton(object source)
+    {
+        var current = source as DependencyObject;
+        while (current is not null)
+        {
+            if (current is System.Windows.Controls.Primitives.ButtonBase or Selector)
+            {
+                return true;
+            }
+
+            current = VisualTreeHelper.GetParent(current);
+        }
+
+        return false;
+    }
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool RegisterHotKey(IntPtr hWnd, int id, uint fsModifiers, uint vk);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool UnregisterHotKey(IntPtr hWnd, int id);
+}

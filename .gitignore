@@ -1,0 +1,31 @@
+# Build output
+bin/
+obj/
+artifacts/
+publish/
+
+# IDE state
+.vs/
+.idea/
+.vscode/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Test output
+TestResults/
+*.trx
+*.coverage
+*.coveragexml
+coverage/
+
+# NuGet
+*.nupkg
+packages/
+
+# Local/runtime files
+*.log
+*.tmp
+*.pid
+*.pdb
