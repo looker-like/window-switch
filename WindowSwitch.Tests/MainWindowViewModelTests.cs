@@ -110,7 +110,10 @@ public sealed class MainWindowViewModelTests
             startHidden: true,
             autoHideAfterSwitch: true,
             isHotkeyEnabled: false,
-            isDesktopHotkeysEnabled: false);
+            isDesktopHotkeysEnabled: false,
+            showHotkeyModifiers: (int)(HotkeyModifiers.Control | HotkeyModifiers.Shift),
+            showHotkeyVirtualKey: 0x71,
+            desktopHotkeyModifiers: (int)(HotkeyModifiers.Alt | HotkeyModifiers.Shift));
 
         using var viewModel = new MainWindowViewModel(fake, settings);
 
@@ -119,6 +122,11 @@ public sealed class MainWindowViewModelTests
         Assert.True(viewModel.AutoHideAfterSwitch);
         Assert.False(viewModel.IsHotkeyEnabled);
         Assert.False(viewModel.IsDesktopHotkeysEnabled);
+        Assert.Equal((int)(HotkeyModifiers.Control | HotkeyModifiers.Shift), viewModel.ShowHotkeyModifiers);
+        Assert.Equal(0x71, viewModel.ShowHotkeyVirtualKey);
+        Assert.Equal("Ctrl + Shift + F2", viewModel.HotkeyText);
+        Assert.Equal((int)(HotkeyModifiers.Alt | HotkeyModifiers.Shift), viewModel.DesktopHotkeyModifiers);
+        Assert.Equal("Alt + Shift + 数字", viewModel.DesktopHotkeyText);
         Assert.Equal(3, viewModel.ColumnsPerRow);
         Assert.Equal(0.75, viewModel.WindowOpacity);
         Assert.Equal(75, viewModel.WindowOpacityPercent);
@@ -132,13 +140,19 @@ public sealed class MainWindowViewModelTests
             10,
             20,
             columnsPerRow: 99,
-            windowOpacity: 0.1);
+            windowOpacity: 0.1,
+            showHotkeyModifiers: 0,
+            showHotkeyVirtualKey: 0x31,
+            desktopHotkeyModifiers: 0xFFFF);
 
         using var viewModel = new MainWindowViewModel(fake, settings);
 
         Assert.Equal(4, viewModel.ColumnsPerRow);
         Assert.Equal(0.35, viewModel.WindowOpacity);
         Assert.Equal(35, viewModel.WindowOpacityPercent);
+        Assert.Equal(HotkeyDefinitions.DefaultHotkeyModifiers, viewModel.ShowHotkeyModifiers);
+        Assert.Equal(HotkeyDefinitions.DefaultShowHotkeyVirtualKey, viewModel.ShowHotkeyVirtualKey);
+        Assert.Equal(HotkeyDefinitions.DefaultHotkeyModifiers, viewModel.DesktopHotkeyModifiers);
     }
 
     [Fact]

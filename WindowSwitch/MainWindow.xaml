@@ -4,6 +4,7 @@
         xmlns:primitives="clr-namespace:System.Windows.Controls.Primitives;assembly=PresentationFramework"
         xmlns:vm="clr-namespace:WindowSwitch.ViewModels"
         Title="WindowSwitch"
+        Icon="Assets/AppIcon.ico"
         SizeToContent="WidthAndHeight"
         MinWidth="230"
         MaxWidth="900"
@@ -156,16 +157,32 @@
         <StackPanel>
             <Grid Margin="2,0,0,8">
                 <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="8" />
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
+                <Border Grid.Column="0"
+                        Width="18"
+                        Height="18"
+                        CornerRadius="5"
+                        Background="#2563EB"
+                        VerticalAlignment="Center"
+                        SnapsToDevicePixels="True">
+                    <TextBlock Text="W"
+                               Foreground="White"
+                               FontSize="11"
+                               FontWeight="Bold"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center" />
+                </Border>
                 <TextBlock Text="WindowSwitch"
-                           Grid.Column="0"
+                           Grid.Column="2"
                            VerticalAlignment="Center"
                            FontSize="13"
                            FontWeight="SemiBold"
                            Foreground="#2F3A4A" />
-                <StackPanel Grid.Column="1"
+                <StackPanel Grid.Column="3"
                             Orientation="Horizontal">
                     <ToggleButton IsChecked="{Binding IsFloatingTopmost, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                   Style="{StaticResource HeaderIconButtonStyle}"
@@ -219,17 +236,49 @@
                               Margin="0,0,0,8"
                               Foreground="#2F3A4A" />
 
-                    <CheckBox IsChecked="{Binding IsHotkeyEnabled, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                              Margin="0,0,0,8"
-                              Foreground="#2F3A4A">
-                        <TextBlock Text="{Binding HotkeyText, StringFormat=启用快捷键 {0}}" />
-                    </CheckBox>
+                    <CheckBox Content="启用唤起快捷键"
+                              IsChecked="{Binding IsHotkeyEnabled, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                              Margin="0,0,0,6"
+                              Foreground="#2F3A4A" />
 
-                    <CheckBox IsChecked="{Binding IsDesktopHotkeysEnabled, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                              Margin="0,0,0,12"
-                              Foreground="#2F3A4A">
-                        <TextBlock Text="{Binding DesktopHotkeyText, StringFormat=启用桌面快捷键 {0}}" />
-                    </CheckBox>
+                    <DockPanel IsEnabled="{Binding IsHotkeyEnabled}"
+                               Margin="0,0,0,10">
+                        <ComboBox Width="122"
+                                  Margin="0,0,8,0"
+                                  ItemsSource="{Binding HotkeyModifierOptions}"
+                                  DisplayMemberPath="DisplayName"
+                                  SelectedValuePath="Value"
+                                  SelectedValue="{Binding ShowHotkeyModifiers, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                        <ComboBox Width="86"
+                                  ItemsSource="{Binding HotkeyKeyOptions}"
+                                  DisplayMemberPath="DisplayName"
+                                  SelectedValuePath="VirtualKey"
+                                  SelectedValue="{Binding ShowHotkeyVirtualKey, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                    </DockPanel>
+
+                    <CheckBox Content="启用桌面快捷键"
+                              IsChecked="{Binding IsDesktopHotkeysEnabled, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                              Margin="0,0,0,6"
+                              Foreground="#2F3A4A" />
+
+                    <DockPanel IsEnabled="{Binding IsDesktopHotkeysEnabled}"
+                               Margin="0,0,0,12">
+                        <ComboBox Width="122"
+                                  Margin="0,0,8,0"
+                                  ItemsSource="{Binding HotkeyModifierOptions}"
+                                  DisplayMemberPath="DisplayName"
+                                  SelectedValuePath="Value"
+                                  SelectedValue="{Binding DesktopHotkeyModifiers, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                        <TextBlock Text="数字键，0 为第 10 个桌面，支持两位数字"
+                                   Style="{StaticResource SettingsLabelStyle}" />
+                    </DockPanel>
+
+                    <TextBlock Text="{Binding HotkeyStatusMessage}"
+                               Visibility="{Binding HasHotkeyStatus, Converter={StaticResource BooleanToVisibilityConverter}}"
+                               Margin="0,0,0,12"
+                               FontSize="12"
+                               Foreground="#B45309"
+                               TextWrapping="Wrap" />
 
                     <DockPanel Margin="0,0,0,12">
                         <TextBlock Text="每行列数"

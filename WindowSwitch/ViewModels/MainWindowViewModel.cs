@@ -22,6 +22,11 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     private bool _autoHideAfterSwitch;
     private bool _isHotkeyEnabled = true;
     private bool _isDesktopHotkeysEnabled = true;
+    private string _hotkeyStatusMessage = string.Empty;
+    private bool _hasHotkeyStatus;
+    private int _showHotkeyModifiers = HotkeyDefinitions.DefaultHotkeyModifiers;
+    private int _showHotkeyVirtualKey = HotkeyDefinitions.DefaultShowHotkeyVirtualKey;
+    private int _desktopHotkeyModifiers = HotkeyDefinitions.DefaultHotkeyModifiers;
     private int _columnsPerRow = WindowSettings.DefaultColumnsPerRow;
     private double _windowOpacity = WindowSettings.DefaultWindowOpacity;
 
@@ -48,6 +53,10 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     public ObservableCollection<DesktopButtonViewModel> Desktops { get; } = [];
 
     public IReadOnlyList<int> ColumnOptions { get; } = [1, 2, 3, 4];
+
+    public IReadOnlyList<HotkeyModifierOption> HotkeyModifierOptions => HotkeyDefinitions.ModifierOptions;
+
+    public IReadOnlyList<HotkeyKeyOption> HotkeyKeyOptions => HotkeyDefinitions.KeyOptions;
 
     public ICommand SwitchDesktopCommand { get; }
 
@@ -89,7 +98,31 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         set => SetProperty(ref _isHotkeyEnabled, value);
     }
 
-    public string HotkeyText => "Ctrl + Alt + Space";
+    public int ShowHotkeyModifiers
+    {
+        get => _showHotkeyModifiers;
+        set
+        {
+            if (SetProperty(ref _showHotkeyModifiers, HotkeyDefinitions.NormalizeModifiers(value)))
+            {
+                OnPropertyChanged(nameof(HotkeyText));
+            }
+        }
+    }
+
+    public int ShowHotkeyVirtualKey
+    {
+        get => _showHotkeyVirtualKey;
+        set
+        {
+            if (SetProperty(ref _showHotkeyVirtualKey, HotkeyDefinitions.NormalizeVirtualKey(value)))
+            {
+                OnPropertyChanged(nameof(HotkeyText));
+            }
+        }
+    }
+
+    public string HotkeyText => HotkeyDefinitions.FormatHotkey(ShowHotkeyModifiers, ShowHotkeyVirtualKey);
 
     public bool IsDesktopHotkeysEnabled
     {
@@ -97,7 +130,31 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         set => SetProperty(ref _isDesktopHotkeysEnabled, value);
     }
 
-    public string DesktopHotkeyText => "Ctrl + Alt + 1-9";
+    public int DesktopHotkeyModifiers
+    {
+        get => _desktopHotkeyModifiers;
+        set
+        {
+            if (SetProperty(ref _desktopHotkeyModifiers, HotkeyDefinitions.NormalizeModifiers(value)))
+            {
+                OnPropertyChanged(nameof(DesktopHotkeyText));
+            }
+        }
+    }
+
+    public string DesktopHotkeyText => HotkeyDefinitions.FormatDesktopHotkey(DesktopHotkeyModifiers);
+
+    public string HotkeyStatusMessage
+    {
+        get => _hotkeyStatusMessage;
+        private set => SetProperty(ref _hotkeyStatusMessage, value);
+    }
+
+    public bool HasHotkeyStatus
+    {
+        get => _hasHotkeyStatus;
+        private set => SetProperty(ref _hasHotkeyStatus, value);
+    }
 
     public int ColumnsPerRow
     {
@@ -147,6 +204,12 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         HasStatus = !string.IsNullOrWhiteSpace(message);
     }
 
+    public void SetHotkeyStatus(string message)
+    {
+        HotkeyStatusMessage = message;
+        HasHotkeyStatus = !string.IsNullOrWhiteSpace(message);
+    }
+
     public void Dispose()
     {
         _desktopService.DesktopsChanged -= _desktopsChangedHandler;
@@ -178,6 +241,9 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         _autoHideAfterSwitch = settings.AutoHideAfterSwitch;
         _isHotkeyEnabled = settings.IsHotkeyEnabled;
         _isDesktopHotkeysEnabled = settings.IsDesktopHotkeysEnabled;
+        _showHotkeyModifiers = HotkeyDefinitions.NormalizeModifiers(settings.ShowHotkeyModifiers);
+        _showHotkeyVirtualKey = HotkeyDefinitions.NormalizeVirtualKey(settings.ShowHotkeyVirtualKey);
+        _desktopHotkeyModifiers = HotkeyDefinitions.NormalizeModifiers(settings.DesktopHotkeyModifiers);
         _columnsPerRow = Clamp(settings.ColumnsPerRow, MinColumnsPerRow, MaxColumnsPerRow);
         _windowOpacity = Clamp(settings.WindowOpacity, MinWindowOpacity, MaxWindowOpacity);
     }

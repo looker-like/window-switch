@@ -7,6 +7,7 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Interop;
 using System.Windows.Threading;
 using System.Runtime.InteropServices;
+using System.IO;
 using WindowSwitch.Services;
 using WindowSwitch.ViewModels;
 using WindowsDesktop;
@@ -17,13 +18,16 @@ namespace WindowSwitch;
 
 public partial class MainWindow : Window
 {
-    private const int HotkeyId = 0x5753;
-    private const int DesktopHotkeyFirstId = 0x5801;
+    private const int ShowHotkeyId = 0x5753;
+    private const int DesktopHotkeyFirstId = 0x5800;
     private const int DesktopHotkeyLastId = 0x5809;
     private const int WmHotkey = 0x0312;
-    private const uint ModAlt = 0x0001;
-    private const uint ModControl = 0x0002;
-    private const uint VkSpace = 0x20;
+    private const uint Vk0 = 0x30;
+    private const int VkShift = 0x10;
+    private const int VkControl = 0x11;
+    private const int VkMenu = 0x12;
+    private const int VkLeftWindows = 0x5B;
+    private const int VkRightWindows = 0x5C;
     private const int GwlExStyle = -20;
     private const int WsExToolWindow = 0x00000080;
     private const int WsExAppWindow = 0x00040000;
@@ -39,6 +43,8 @@ public partial class MainWindow : Window
     private readonly IWindowSettingsStore _settingsStore;
     private readonly DispatcherTimer _refreshTimer;
     private readonly DispatcherTimer _settingsSaveTimer;
+    private readonly DispatcherTimer _desktopHotkeySequenceTimer;
+    private readonly DesktopHotkeySequence _desktopHotkeySequence = new();
     private readonly MainWindowViewModel _viewModel;
     private readonly WindowSettings _initialSettings;
     private readonly Forms.NotifyIcon _notifyIcon;
@@ -75,6 +81,18 @@ public partial class MainWindow : Window
         {
             _settingsSaveTimer.Stop();
             SaveCurrentSettings();
+        };
+
+        _desktopHotkeySequenceTimer = new DispatcherTimer(DispatcherPriority.Input, Dispatcher)
+        {
+            Interval = TimeSpan.FromMilliseconds(50),
+        };
+        _desktopHotkeySequenceTimer.Tick += (_, _) =>
+        {
+            if (!AreRequiredModifiersPressed(_viewModel.DesktopHotkeyModifiers))
+            {
+                ResetDesktopHotkeySequence();
+            }
         };
 
         SourceInitialized += MainWindow_SourceInitialized;
@@ -216,11 +234,17 @@ public partial class MainWindow : Window
             nameof(MainWindowViewModel.StartHidden) or
             nameof(MainWindowViewModel.AutoHideAfterSwitch) or
             nameof(MainWindowViewModel.IsHotkeyEnabled) or
-            nameof(MainWindowViewModel.IsDesktopHotkeysEnabled))
+            nameof(MainWindowViewModel.IsDesktopHotkeysEnabled) or
+            nameof(MainWindowViewModel.ShowHotkeyModifiers) or
+            nameof(MainWindowViewModel.ShowHotkeyVirtualKey) or
+            nameof(MainWindowViewModel.DesktopHotkeyModifiers))
         {
             ApplyRuntimeSettings();
             if (e.PropertyName is nameof(MainWindowViewModel.IsHotkeyEnabled) or
-                nameof(MainWindowViewModel.IsDesktopHotkeysEnabled))
+                nameof(MainWindowViewModel.IsDesktopHotkeysEnabled) or
+                nameof(MainWindowViewModel.ShowHotkeyModifiers) or
+                nameof(MainWindowViewModel.ShowHotkeyVirtualKey) or
+                nameof(MainWindowViewModel.DesktopHotkeyModifiers))
             {
                 ApplyHotkeyRegistration();
             }
@@ -275,7 +299,10 @@ public partial class MainWindow : Window
             _viewModel.StartHidden,
             _viewModel.AutoHideAfterSwitch,
             _viewModel.IsHotkeyEnabled,
-            _viewModel.IsDesktopHotkeysEnabled));
+            _viewModel.IsDesktopHotkeysEnabled,
+            _viewModel.ShowHotkeyModifiers,
+            _viewModel.ShowHotkeyVirtualKey,
+            _viewModel.DesktopHotkeyModifiers));
     }
 
     private void PositionCenterOnMouse()
@@ -378,30 +405,49 @@ public partial class MainWindow : Window
             return;
         }
 
+        ResetDesktopHotkeySequence();
         UnregisterHotkeys();
 
         var failedHotkeys = new List<string>();
-        if (_viewModel.IsHotkeyEnabled &&
-            !TryRegisterHotkey(HotkeyId, ModControl | ModAlt, VkSpace))
+        var registeredHotkeys = new List<string>();
+
+        if (_viewModel.IsHotkeyEnabled)
         {
-            failedHotkeys.Add(_viewModel.HotkeyText);
+            if (TryRegisterHotkey(
+                ShowHotkeyId,
+                HotkeyDefinitions.ToRegisterHotkeyModifiers(_viewModel.ShowHotkeyModifiers),
+                (uint)_viewModel.ShowHotkeyVirtualKey))
+            {
+                registeredHotkeys.Add(_viewModel.HotkeyText);
+            }
+            else
+            {
+                failedHotkeys.Add(_viewModel.HotkeyText);
+            }
         }
 
         if (_viewModel.IsDesktopHotkeysEnabled)
         {
             for (var index = 1; index <= 9; index++)
             {
-                var key = (uint)('0' + index);
-                if (!TryRegisterHotkey(DesktopHotkeyFirstId + index - 1, ModControl | ModAlt, key))
-                {
-                    failedHotkeys.Add($"Ctrl + Alt + {index}");
-                }
+                RegisterDesktopDigitHotkey(index, failedHotkeys);
             }
+
+            RegisterDesktopDigitHotkey(0, failedHotkeys);
+            registeredHotkeys.Add($"{_viewModel.DesktopHotkeyText}（0=第10桌面，支持两位）");
         }
 
         if (failedHotkeys.Count > 0)
         {
-            _viewModel.SetStatus($"快捷键注册失败：{string.Join(", ", failedHotkeys)}。可能已被其他应用占用。");
+            _viewModel.SetHotkeyStatus($"快捷键冲突：{string.Join(", ", failedHotkeys)} 已被其他应用占用或被系统保留。");
+        }
+        else if (registeredHotkeys.Count > 0)
+        {
+            _viewModel.SetHotkeyStatus($"快捷键可用：{string.Join("；", registeredHotkeys)}");
+        }
+        else
+        {
+            _viewModel.SetHotkeyStatus(string.Empty);
         }
     }
 
@@ -413,18 +459,31 @@ public partial class MainWindow : Window
         }
 
         var hotkeyId = wParam.ToInt32();
-        if (hotkeyId == HotkeyId)
+        if (hotkeyId == ShowHotkeyId)
         {
             ShowFromBackground();
             handled = true;
         }
         else if (hotkeyId is >= DesktopHotkeyFirstId and <= DesktopHotkeyLastId)
         {
-            SwitchDesktopFromHotkey(hotkeyId - DesktopHotkeyFirstId + 1);
+            HandleDesktopHotkeyDigit(hotkeyId - DesktopHotkeyFirstId);
             handled = true;
         }
 
         return IntPtr.Zero;
+    }
+
+    private void RegisterDesktopDigitHotkey(int digit, List<string> failedHotkeys)
+    {
+        if (TryRegisterHotkey(
+            DesktopHotkeyFirstId + digit,
+            HotkeyDefinitions.ToRegisterHotkeyModifiers(_viewModel.DesktopHotkeyModifiers),
+            DigitToVirtualKey(digit)))
+        {
+            return;
+        }
+
+        failedHotkeys.Add($"{HotkeyDefinitions.FormatModifiers(_viewModel.DesktopHotkeyModifiers)} + {digit}");
     }
 
     private bool TryRegisterHotkey(int id, uint modifiers, uint key)
@@ -448,6 +507,75 @@ public partial class MainWindow : Window
         _registeredHotkeyIds.Clear();
     }
 
+    private void HandleDesktopHotkeyDigit(int digit)
+    {
+        _viewModel.Refresh();
+        var availableDesktopIndexes = _viewModel.Desktops.Select(desktop => desktop.Index).ToArray();
+        var desktopIndex = _desktopHotkeySequence.HandleDigit(digit, availableDesktopIndexes);
+
+        if (_desktopHotkeySequence.IsListening)
+        {
+            if (!_desktopHotkeySequenceTimer.IsEnabled)
+            {
+                _desktopHotkeySequenceTimer.Start();
+            }
+        }
+        else
+        {
+            _desktopHotkeySequenceTimer.Stop();
+        }
+
+        if (desktopIndex is int targetIndex)
+        {
+            SwitchDesktopFromHotkey(targetIndex);
+        }
+    }
+
+    private void ResetDesktopHotkeySequence()
+    {
+        _desktopHotkeySequence.Reset();
+        _desktopHotkeySequenceTimer.Stop();
+    }
+
+    private static uint DigitToVirtualKey(int digit)
+    {
+        return Vk0 + (uint)digit;
+    }
+
+    private static bool AreRequiredModifiersPressed(int modifiers)
+    {
+        var normalized = (HotkeyModifiers)HotkeyDefinitions.NormalizeModifiers(modifiers);
+
+        if (normalized.HasFlag(HotkeyModifiers.Control) && !IsKeyPressed(VkControl))
+        {
+            return false;
+        }
+
+        if (normalized.HasFlag(HotkeyModifiers.Alt) && !IsKeyPressed(VkMenu))
+        {
+            return false;
+        }
+
+        if (normalized.HasFlag(HotkeyModifiers.Shift) && !IsKeyPressed(VkShift))
+        {
+            return false;
+        }
+
+        if (normalized.HasFlag(HotkeyModifiers.Windows) &&
+            !IsKeyPressed(VkLeftWindows) &&
+            !IsKeyPressed(VkRightWindows))
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+    private static bool IsKeyPressed(int virtualKey)
+    {
+        return (GetAsyncKeyState(virtualKey) & 0x8000) != 0;
+    }
+
     private void SwitchDesktopFromHotkey(int desktopIndex)
     {
         var desktop = _viewModel.Desktops.FirstOrDefault(item => item.Index == desktopIndex);
@@ -465,7 +593,7 @@ public partial class MainWindow : Window
 
         var notifyIcon = new Forms.NotifyIcon
         {
-            Icon = Drawing.SystemIcons.Application,
+            Icon = LoadAppIcon(),
             Text = "WindowSwitch",
             Visible = true,
             ContextMenuStrip = menu,
@@ -473,6 +601,12 @@ public partial class MainWindow : Window
 
         notifyIcon.DoubleClick += (_, _) => Dispatcher.Invoke(ShowFromBackground);
         return notifyIcon;
+    }
+
+    private static Drawing.Icon LoadAppIcon()
+    {
+        var iconPath = Path.Combine(AppContext.BaseDirectory, "Assets", "AppIcon.ico");
+        return new Drawing.Icon(iconPath);
     }
 
     private void ExitApplication()
@@ -485,6 +619,7 @@ public partial class MainWindow : Window
     {
         _refreshTimer.Stop();
         _settingsSaveTimer.Stop();
+        _desktopHotkeySequenceTimer.Stop();
         _viewModel.PropertyChanged -= ViewModel_PropertyChanged;
         _viewModel.DesktopSwitchCompleted -= ViewModel_DesktopSwitchCompleted;
         _hwndSource?.RemoveHook(WndProc);
@@ -519,6 +654,9 @@ public partial class MainWindow : Window
 
     [DllImport("user32.dll", SetLastError = true)]
     private static extern bool UnregisterHotKey(IntPtr hWnd, int id);
+
+    [DllImport("user32.dll")]
+    private static extern short GetAsyncKeyState(int vKey);
 
     [DllImport("user32.dll", EntryPoint = "GetWindowLongPtrW", SetLastError = true)]
     private static extern IntPtr GetWindowLongPtr(IntPtr hWnd, int nIndex);

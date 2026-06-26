@@ -18,7 +18,10 @@ public sealed class WindowSettings
         bool startHidden = true,
         bool autoHideAfterSwitch = false,
         bool isHotkeyEnabled = true,
-        bool isDesktopHotkeysEnabled = true)
+        bool isDesktopHotkeysEnabled = true,
+        int showHotkeyModifiers = HotkeyDefinitions.DefaultHotkeyModifiers,
+        int showHotkeyVirtualKey = HotkeyDefinitions.DefaultShowHotkeyVirtualKey,
+        int desktopHotkeyModifiers = HotkeyDefinitions.DefaultHotkeyModifiers)
     {
         Left = left;
         Top = top;
@@ -29,6 +32,9 @@ public sealed class WindowSettings
         AutoHideAfterSwitch = autoHideAfterSwitch;
         IsHotkeyEnabled = isHotkeyEnabled;
         IsDesktopHotkeysEnabled = isDesktopHotkeysEnabled;
+        ShowHotkeyModifiers = showHotkeyModifiers;
+        ShowHotkeyVirtualKey = showHotkeyVirtualKey;
+        DesktopHotkeyModifiers = desktopHotkeyModifiers;
     }
 
     public double Left { get; init; } = double.NaN;
@@ -48,4 +54,10 @@ public sealed class WindowSettings
     public bool IsHotkeyEnabled { get; init; } = true;
 
     public bool IsDesktopHotkeysEnabled { get; init; } = true;
+
+    public int ShowHotkeyModifiers { get; init; } = HotkeyDefinitions.DefaultHotkeyModifiers;
+
+    public int ShowHotkeyVirtualKey { get; init; } = HotkeyDefinitions.DefaultShowHotkeyVirtualKey;
+
+    public int DesktopHotkeyModifiers { get; init; } = HotkeyDefinitions.DefaultHotkeyModifiers;
 }
