@@ -21,7 +21,9 @@ public sealed class WindowSettings
         bool isDesktopHotkeysEnabled = true,
         int showHotkeyModifiers = HotkeyDefinitions.DefaultHotkeyModifiers,
         int showHotkeyVirtualKey = HotkeyDefinitions.DefaultShowHotkeyVirtualKey,
-        int desktopHotkeyModifiers = HotkeyDefinitions.DefaultHotkeyModifiers)
+        int desktopHotkeyModifiers = HotkeyDefinitions.DefaultHotkeyModifiers,
+        int showHotkeyKind = (int)HotkeyDefinitions.DefaultShowHotkeyKind,
+        int showHotkeyMouseButton = (int)HotkeyDefinitions.DefaultShowHotkeyMouseButton)
     {
         Left = left;
         Top = top;
@@ -35,6 +37,8 @@ public sealed class WindowSettings
         ShowHotkeyModifiers = showHotkeyModifiers;
         ShowHotkeyVirtualKey = showHotkeyVirtualKey;
         DesktopHotkeyModifiers = desktopHotkeyModifiers;
+        ShowHotkeyKind = showHotkeyKind;
+        ShowHotkeyMouseButton = showHotkeyMouseButton;
     }
 
     public double Left { get; init; } = double.NaN;
@@ -60,4 +64,8 @@ public sealed class WindowSettings
     public int ShowHotkeyVirtualKey { get; init; } = HotkeyDefinitions.DefaultShowHotkeyVirtualKey;
 
     public int DesktopHotkeyModifiers { get; init; } = HotkeyDefinitions.DefaultHotkeyModifiers;
+
+    public int ShowHotkeyKind { get; init; } = (int)HotkeyDefinitions.DefaultShowHotkeyKind;
+
+    public int ShowHotkeyMouseButton { get; init; } = (int)HotkeyDefinitions.DefaultShowHotkeyMouseButton;
 }

@@ -24,8 +24,11 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     private bool _isDesktopHotkeysEnabled = true;
     private string _hotkeyStatusMessage = string.Empty;
     private bool _hasHotkeyStatus;
+    private bool _isCapturingShowHotkey;
+    private ShowHotkeyKind _showHotkeyKind = HotkeyDefinitions.DefaultShowHotkeyKind;
     private int _showHotkeyModifiers = HotkeyDefinitions.DefaultHotkeyModifiers;
     private int _showHotkeyVirtualKey = HotkeyDefinitions.DefaultShowHotkeyVirtualKey;
+    private MouseHotkeyButton _showHotkeyMouseButton = HotkeyDefinitions.DefaultShowHotkeyMouseButton;
     private int _desktopHotkeyModifiers = HotkeyDefinitions.DefaultHotkeyModifiers;
     private int _columnsPerRow = WindowSettings.DefaultColumnsPerRow;
     private double _windowOpacity = WindowSettings.DefaultWindowOpacity;
@@ -98,6 +101,18 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         set => SetProperty(ref _isHotkeyEnabled, value);
     }
 
+    public ShowHotkeyKind ShowHotkeyKind
+    {
+        get => _showHotkeyKind;
+        private set
+        {
+            if (SetProperty(ref _showHotkeyKind, value))
+            {
+                OnPropertyChanged(nameof(HotkeyText));
+            }
+        }
+    }
+
     public int ShowHotkeyModifiers
     {
         get => _showHotkeyModifiers;
@@ -122,7 +137,37 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         }
     }
 
-    public string HotkeyText => HotkeyDefinitions.FormatHotkey(ShowHotkeyModifiers, ShowHotkeyVirtualKey);
+    public MouseHotkeyButton ShowHotkeyMouseButton
+    {
+        get => _showHotkeyMouseButton;
+        private set
+        {
+            if (SetProperty(ref _showHotkeyMouseButton, value))
+            {
+                OnPropertyChanged(nameof(HotkeyText));
+            }
+        }
+    }
+
+    public string HotkeyText => HotkeyDefinitions.FormatHotkey(
+        ShowHotkeyKind,
+        ShowHotkeyModifiers,
+        ShowHotkeyVirtualKey,
+        ShowHotkeyMouseButton);
+
+    public bool IsCapturingShowHotkey
+    {
+        get => _isCapturingShowHotkey;
+        set
+        {
+            if (SetProperty(ref _isCapturingShowHotkey, value))
+            {
+                OnPropertyChanged(nameof(ShowHotkeyCaptureButtonText));
+            }
+        }
+    }
+
+    public string ShowHotkeyCaptureButtonText => IsCapturingShowHotkey ? "取消" : "监听";
 
     public bool IsDesktopHotkeysEnabled
     {
@@ -210,6 +255,32 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         HasHotkeyStatus = !string.IsNullOrWhiteSpace(message);
     }
 
+    public void ApplyCapturedShowHotkey(CapturedShowHotkey hotkey)
+    {
+        ShowHotkeyKind = hotkey.Kind;
+        if (hotkey.Kind == ShowHotkeyKind.MouseButton)
+        {
+            ShowHotkeyMouseButton = hotkey.MouseButton;
+            return;
+        }
+
+        ShowHotkeyModifiers = hotkey.Modifiers;
+        ShowHotkeyVirtualKey = hotkey.VirtualKey;
+    }
+
+    public void ClearGestureSelection()
+    {
+        SetGestureSelectedDesktop(null);
+    }
+
+    public void SetGestureSelectedDesktop(Guid? id)
+    {
+        foreach (var desktop in Desktops)
+        {
+            desktop.IsGestureSelected = id.HasValue && desktop.Id == id.Value;
+        }
+    }
+
     public void Dispose()
     {
         _desktopService.DesktopsChanged -= _desktopsChangedHandler;
@@ -241,8 +312,10 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         _autoHideAfterSwitch = settings.AutoHideAfterSwitch;
         _isHotkeyEnabled = settings.IsHotkeyEnabled;
         _isDesktopHotkeysEnabled = settings.IsDesktopHotkeysEnabled;
+        _showHotkeyKind = HotkeyDefinitions.NormalizeShowHotkeyKind(settings.ShowHotkeyKind);
         _showHotkeyModifiers = HotkeyDefinitions.NormalizeModifiers(settings.ShowHotkeyModifiers);
         _showHotkeyVirtualKey = HotkeyDefinitions.NormalizeVirtualKey(settings.ShowHotkeyVirtualKey);
+        _showHotkeyMouseButton = HotkeyDefinitions.NormalizeMouseButton(settings.ShowHotkeyMouseButton);
         _desktopHotkeyModifiers = HotkeyDefinitions.NormalizeModifiers(settings.DesktopHotkeyModifiers);
         _columnsPerRow = Clamp(settings.ColumnsPerRow, MinColumnsPerRow, MaxColumnsPerRow);
         _windowOpacity = Clamp(settings.WindowOpacity, MinWindowOpacity, MaxWindowOpacity);

@@ -21,8 +21,23 @@ public partial class MainWindow : Window
     private const int ShowHotkeyId = 0x5753;
     private const int DesktopHotkeyFirstId = 0x5800;
     private const int DesktopHotkeyLastId = 0x5809;
+    private const int WhKeyboardLl = 13;
+    private const int WhMouseLl = 14;
+    private const int HcAction = 0;
     private const int WmHotkey = 0x0312;
+    private const int WmKeyDown = 0x0100;
+    private const int WmSysKeyDown = 0x0104;
+    private const int WmMouseMove = 0x0200;
+    private const int WmLeftButtonDown = 0x0201;
+    private const int WmLeftButtonUp = 0x0202;
+    private const int WmRightButtonDown = 0x0204;
+    private const int WmRightButtonUp = 0x0205;
+    private const int WmMiddleButtonDown = 0x0207;
+    private const int WmMiddleButtonUp = 0x0208;
+    private const int WmXButtonDown = 0x020B;
+    private const int WmXButtonUp = 0x020C;
     private const uint Vk0 = 0x30;
+    private const int VkEscape = 0x1B;
     private const int VkShift = 0x10;
     private const int VkControl = 0x11;
     private const int VkMenu = 0x12;
@@ -37,9 +52,13 @@ public partial class MainWindow : Window
     private const uint SwpNoZOrder = 0x0004;
     private const uint SwpNoActivate = 0x0010;
     private const uint SwpFrameChanged = 0x0020;
+    private const int XButton1 = 0x0001;
+    private const int XButton2 = 0x0002;
     private static readonly IntPtr HwndTopMost = new(-1);
     private static readonly IntPtr HwndNoTopMost = new(-2);
 
+    private readonly LowLevelKeyboardProc _keyboardHookCallback;
+    private readonly LowLevelMouseProc _mouseHookCallback;
     private readonly IWindowSettingsStore _settingsStore;
     private readonly DispatcherTimer _refreshTimer;
     private readonly DispatcherTimer _settingsSaveTimer;
@@ -51,15 +70,23 @@ public partial class MainWindow : Window
     private readonly List<int> _registeredHotkeyIds = [];
     private HwndSource? _hwndSource;
     private IntPtr _windowHandle;
+    private IntPtr _keyboardHook;
+    private IntPtr _mouseHook;
     private bool _isExitRequested;
     private bool _hasAppliedInitialVisibility;
     private bool _hasPinnedWindowToAllDesktops;
+    private bool _isMouseActivationGestureActive;
+    private bool _wasVisibleBeforeMouseGesture;
+    private Guid? _mouseGestureSelectedDesktopId;
+    private MouseHotkeyButton? _activeMouseActivationButton;
 
     public MainWindow(MainWindowViewModel viewModel, IWindowSettingsStore settingsStore, WindowSettings initialSettings)
     {
         _viewModel = viewModel;
         _settingsStore = settingsStore;
         _initialSettings = initialSettings;
+        _keyboardHookCallback = KeyboardHookProc;
+        _mouseHookCallback = MouseHookProc;
 
         InitializeComponent();
         DataContext = viewModel;
@@ -175,6 +202,17 @@ public partial class MainWindow : Window
         SettingsPanel.Visibility = SettingsButton.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
     }
 
+    private void RecordShowHotkeyButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_viewModel.IsCapturingShowHotkey)
+        {
+            EndShowHotkeyCapture("已取消监听。");
+            return;
+        }
+
+        BeginShowHotkeyCapture();
+    }
+
     private void ApplyWindowPosition()
     {
         if (IsReasonablePosition(_initialSettings.Left, _initialSettings.Top))
@@ -235,15 +273,19 @@ public partial class MainWindow : Window
             nameof(MainWindowViewModel.AutoHideAfterSwitch) or
             nameof(MainWindowViewModel.IsHotkeyEnabled) or
             nameof(MainWindowViewModel.IsDesktopHotkeysEnabled) or
+            nameof(MainWindowViewModel.ShowHotkeyKind) or
             nameof(MainWindowViewModel.ShowHotkeyModifiers) or
             nameof(MainWindowViewModel.ShowHotkeyVirtualKey) or
+            nameof(MainWindowViewModel.ShowHotkeyMouseButton) or
             nameof(MainWindowViewModel.DesktopHotkeyModifiers))
         {
             ApplyRuntimeSettings();
             if (e.PropertyName is nameof(MainWindowViewModel.IsHotkeyEnabled) or
                 nameof(MainWindowViewModel.IsDesktopHotkeysEnabled) or
+                nameof(MainWindowViewModel.ShowHotkeyKind) or
                 nameof(MainWindowViewModel.ShowHotkeyModifiers) or
                 nameof(MainWindowViewModel.ShowHotkeyVirtualKey) or
+                nameof(MainWindowViewModel.ShowHotkeyMouseButton) or
                 nameof(MainWindowViewModel.DesktopHotkeyModifiers))
             {
                 ApplyHotkeyRegistration();
@@ -302,7 +344,9 @@ public partial class MainWindow : Window
             _viewModel.IsDesktopHotkeysEnabled,
             _viewModel.ShowHotkeyModifiers,
             _viewModel.ShowHotkeyVirtualKey,
-            _viewModel.DesktopHotkeyModifiers));
+            _viewModel.DesktopHotkeyModifiers,
+            (int)_viewModel.ShowHotkeyKind,
+            (int)_viewModel.ShowHotkeyMouseButton));
     }
 
     private void PositionCenterOnMouse()
@@ -350,8 +394,18 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
+            if (IsNonActionableVirtualDesktopPinError(ex))
+            {
+                return;
+            }
+
             _viewModel.SetStatus($"窗口跨虚拟桌面显示失败：{ex.Message}");
         }
+    }
+
+    private static bool IsNonActionableVirtualDesktopPinError(Exception ex)
+    {
+        return ex is COMException { HResult: unchecked((int)0x8002802B) };
     }
 
     private void ApplyAltTabHiddenWindowStyles()
@@ -398,6 +452,161 @@ public partial class MainWindow : Window
         SettingsPanel.Visibility = Visibility.Collapsed;
     }
 
+    private void BeginShowHotkeyCapture()
+    {
+        _viewModel.IsCapturingShowHotkey = true;
+        _viewModel.SetHotkeyStatus("正在监听唤起快捷键。");
+
+        var keyboardReady = EnsureKeyboardHook();
+        var mouseReady = EnsureMouseHook();
+        if (!keyboardReady || !mouseReady)
+        {
+            EndShowHotkeyCapture("监听启动失败，无法录制新的唤起快捷键。");
+        }
+    }
+
+    private void EndShowHotkeyCapture(string? statusMessage = null)
+    {
+        _viewModel.IsCapturingShowHotkey = false;
+        if (statusMessage is not null)
+        {
+            _viewModel.SetHotkeyStatus(statusMessage);
+        }
+
+        UpdateInputHookLifetime();
+    }
+
+    private void CompleteShowHotkeyCapture(CapturedShowHotkey hotkey)
+    {
+        _viewModel.IsCapturingShowHotkey = false;
+        _viewModel.ApplyCapturedShowHotkey(hotkey);
+        ScheduleSettingsSave();
+        UpdateInputHookLifetime();
+    }
+
+    private void CaptureKeyboardHotkey(int virtualKey)
+    {
+        if (!_viewModel.IsCapturingShowHotkey)
+        {
+            return;
+        }
+
+        if (virtualKey == VkEscape)
+        {
+            EndShowHotkeyCapture("已取消监听。");
+            return;
+        }
+
+        if (!HotkeyDefinitions.IsSupportedMainVirtualKey(virtualKey))
+        {
+            return;
+        }
+
+        var modifiers = GetPressedHotkeyModifiers();
+        if (modifiers == 0)
+        {
+            _viewModel.SetHotkeyStatus("键盘唤起快捷键需要同时按住 Ctrl、Alt、Shift 或 Win。");
+            return;
+        }
+
+        CompleteShowHotkeyCapture(new CapturedShowHotkey(
+            ShowHotkeyKind.Keyboard,
+            modifiers,
+            virtualKey,
+            _viewModel.ShowHotkeyMouseButton));
+    }
+
+    private void CaptureMouseHotkey(MouseHotkeyButton button)
+    {
+        if (!_viewModel.IsCapturingShowHotkey)
+        {
+            return;
+        }
+
+        CompleteShowHotkeyCapture(new CapturedShowHotkey(
+            ShowHotkeyKind.MouseButton,
+            _viewModel.ShowHotkeyModifiers,
+            _viewModel.ShowHotkeyVirtualKey,
+            button));
+    }
+
+    private void BeginMouseActivationGesture(MouseHotkeyButton button, NativePoint point)
+    {
+        if (_isMouseActivationGestureActive || _viewModel.IsCapturingShowHotkey)
+        {
+            return;
+        }
+
+        _isMouseActivationGestureActive = true;
+        _activeMouseActivationButton = button;
+        _wasVisibleBeforeMouseGesture = IsVisible;
+        _mouseGestureSelectedDesktopId = null;
+
+        ShowFromBackground();
+        UpdateMouseGestureSelection(point);
+    }
+
+    private void UpdateMouseGestureSelection(NativePoint point)
+    {
+        if (!_isMouseActivationGestureActive)
+        {
+            return;
+        }
+
+        var desktop = GetDesktopUnderScreenPoint(point);
+        _mouseGestureSelectedDesktopId = desktop?.Id;
+        _viewModel.SetGestureSelectedDesktop(_mouseGestureSelectedDesktopId);
+    }
+
+    private void CompleteMouseActivationGesture(NativePoint point)
+    {
+        if (!_isMouseActivationGestureActive)
+        {
+            return;
+        }
+
+        UpdateMouseGestureSelection(point);
+        var selectedId = _mouseGestureSelectedDesktopId;
+        var shouldHideAfterGesture = !_wasVisibleBeforeMouseGesture;
+
+        _isMouseActivationGestureActive = false;
+        _activeMouseActivationButton = null;
+        _mouseGestureSelectedDesktopId = null;
+        _viewModel.ClearGestureSelection();
+
+        if (selectedId is Guid id)
+        {
+            _viewModel.SwitchDesktopCommand.Execute(id);
+        }
+
+        if (shouldHideAfterGesture && !_viewModel.AutoHideAfterSwitch)
+        {
+            HideToBackground();
+        }
+    }
+
+    private DesktopButtonViewModel? GetDesktopUnderScreenPoint(NativePoint point)
+    {
+        if (!IsVisible)
+        {
+            return null;
+        }
+
+        var hitPoint = DesktopItems.PointFromScreen(new System.Windows.Point(point.X, point.Y));
+        var hit = DesktopItems.InputHitTest(hitPoint) as DependencyObject;
+        while (hit is not null)
+        {
+            if (hit is FrameworkElement { DataContext: DesktopButtonViewModel desktop })
+            {
+                return desktop;
+            }
+
+            hit = VisualTreeHelper.GetParent(hit);
+        }
+
+        return null;
+    }
+
     private void ApplyHotkeyRegistration()
     {
         if (_windowHandle == IntPtr.Zero)
@@ -413,16 +622,30 @@ public partial class MainWindow : Window
 
         if (_viewModel.IsHotkeyEnabled)
         {
-            if (TryRegisterHotkey(
-                ShowHotkeyId,
-                HotkeyDefinitions.ToRegisterHotkeyModifiers(_viewModel.ShowHotkeyModifiers),
-                (uint)_viewModel.ShowHotkeyVirtualKey))
+            if (_viewModel.ShowHotkeyKind == ShowHotkeyKind.MouseButton)
             {
-                registeredHotkeys.Add(_viewModel.HotkeyText);
+                if (EnsureMouseHook())
+                {
+                    registeredHotkeys.Add($"{_viewModel.HotkeyText}（按住滑动选择）");
+                }
+                else
+                {
+                    failedHotkeys.Add(_viewModel.HotkeyText);
+                }
             }
             else
             {
-                failedHotkeys.Add(_viewModel.HotkeyText);
+                if (TryRegisterHotkey(
+                    ShowHotkeyId,
+                    HotkeyDefinitions.ToRegisterHotkeyModifiers(_viewModel.ShowHotkeyModifiers),
+                    (uint)_viewModel.ShowHotkeyVirtualKey))
+                {
+                    registeredHotkeys.Add(_viewModel.HotkeyText);
+                }
+                else
+                {
+                    failedHotkeys.Add(_viewModel.HotkeyText);
+                }
             }
         }
 
@@ -449,6 +672,8 @@ public partial class MainWindow : Window
         {
             _viewModel.SetHotkeyStatus(string.Empty);
         }
+
+        UpdateInputHookLifetime();
     }
 
     private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
@@ -505,6 +730,174 @@ public partial class MainWindow : Window
         }
 
         _registeredHotkeyIds.Clear();
+    }
+
+    private bool EnsureKeyboardHook()
+    {
+        if (_keyboardHook != IntPtr.Zero)
+        {
+            return true;
+        }
+
+        _keyboardHook = SetKeyboardHook(
+            WhKeyboardLl,
+            _keyboardHookCallback,
+            GetModuleHandle(null),
+            0);
+        return _keyboardHook != IntPtr.Zero;
+    }
+
+    private bool EnsureMouseHook()
+    {
+        if (_mouseHook != IntPtr.Zero)
+        {
+            return true;
+        }
+
+        _mouseHook = SetMouseHook(
+            WhMouseLl,
+            _mouseHookCallback,
+            GetModuleHandle(null),
+            0);
+        return _mouseHook != IntPtr.Zero;
+    }
+
+    private void UpdateInputHookLifetime()
+    {
+        if (_viewModel.IsCapturingShowHotkey)
+        {
+            EnsureKeyboardHook();
+            EnsureMouseHook();
+            return;
+        }
+
+        ReleaseKeyboardHook();
+        if (_viewModel.IsHotkeyEnabled && _viewModel.ShowHotkeyKind == ShowHotkeyKind.MouseButton)
+        {
+            EnsureMouseHook();
+            return;
+        }
+
+        ReleaseMouseHook();
+    }
+
+    private void ReleaseKeyboardHook()
+    {
+        if (_keyboardHook == IntPtr.Zero)
+        {
+            return;
+        }
+
+        UnhookWindowsHookEx(_keyboardHook);
+        _keyboardHook = IntPtr.Zero;
+    }
+
+    private void ReleaseMouseHook()
+    {
+        if (_mouseHook == IntPtr.Zero)
+        {
+            return;
+        }
+
+        UnhookWindowsHookEx(_mouseHook);
+        _mouseHook = IntPtr.Zero;
+    }
+
+    private IntPtr KeyboardHookProc(int nCode, IntPtr wParam, IntPtr lParam)
+    {
+        if (nCode == HcAction &&
+            _viewModel.IsCapturingShowHotkey &&
+            wParam.ToInt32() is WmKeyDown or WmSysKeyDown)
+        {
+            var data = Marshal.PtrToStructure<KeyboardHookData>(lParam);
+            Dispatcher.BeginInvoke(() => CaptureKeyboardHotkey(data.VirtualKeyCode), DispatcherPriority.Input);
+            return new IntPtr(1);
+        }
+
+        return CallNextHookEx(_keyboardHook, nCode, wParam, lParam);
+    }
+
+    private IntPtr MouseHookProc(int nCode, IntPtr wParam, IntPtr lParam)
+    {
+        if (nCode != HcAction)
+        {
+            return CallNextHookEx(_mouseHook, nCode, wParam, lParam);
+        }
+
+        var message = wParam.ToInt32();
+        var data = Marshal.PtrToStructure<MouseHookData>(lParam);
+
+        if (_viewModel.IsCapturingShowHotkey &&
+            TryGetMouseButton(message, data.MouseData, out var capturedButton, out var isCaptureDown, out _) &&
+            isCaptureDown)
+        {
+            Dispatcher.BeginInvoke(() => CaptureMouseHotkey(capturedButton), DispatcherPriority.Input);
+            return new IntPtr(1);
+        }
+
+        if (_isMouseActivationGestureActive)
+        {
+            if (message == WmMouseMove)
+            {
+                Dispatcher.BeginInvoke(() => UpdateMouseGestureSelection(data.Point), DispatcherPriority.Input);
+            }
+            else if (TryGetMouseButton(message, data.MouseData, out var button, out _, out var isUp) &&
+                isUp &&
+                button == _activeMouseActivationButton)
+            {
+                Dispatcher.BeginInvoke(() => CompleteMouseActivationGesture(data.Point), DispatcherPriority.Input);
+                return new IntPtr(1);
+            }
+
+            return CallNextHookEx(_mouseHook, nCode, wParam, lParam);
+        }
+
+        if (_viewModel.IsHotkeyEnabled &&
+            _viewModel.ShowHotkeyKind == ShowHotkeyKind.MouseButton &&
+            TryGetMouseButton(message, data.MouseData, out var activationButton, out var isDown, out _) &&
+            isDown &&
+            activationButton == _viewModel.ShowHotkeyMouseButton)
+        {
+            Dispatcher.BeginInvoke(() => BeginMouseActivationGesture(activationButton, data.Point), DispatcherPriority.Input);
+            return new IntPtr(1);
+        }
+
+        return CallNextHookEx(_mouseHook, nCode, wParam, lParam);
+    }
+
+    private static bool TryGetMouseButton(
+        int message,
+        int mouseData,
+        out MouseHotkeyButton button,
+        out bool isDown,
+        out bool isUp)
+    {
+        isDown = message is WmLeftButtonDown or WmRightButtonDown or WmMiddleButtonDown or WmXButtonDown;
+        isUp = message is WmLeftButtonUp or WmRightButtonUp or WmMiddleButtonUp or WmXButtonUp;
+        button = MouseHotkeyButton.Left;
+
+        switch (message)
+        {
+            case WmLeftButtonDown:
+            case WmLeftButtonUp:
+                button = MouseHotkeyButton.Left;
+                return true;
+            case WmRightButtonDown:
+            case WmRightButtonUp:
+                button = MouseHotkeyButton.Right;
+                return true;
+            case WmMiddleButtonDown:
+            case WmMiddleButtonUp:
+                button = MouseHotkeyButton.Middle;
+                return true;
+            case WmXButtonDown:
+            case WmXButtonUp:
+                var xButton = (mouseData >> 16) & 0xFFFF;
+                button = xButton == XButton2 ? MouseHotkeyButton.XButton2 : MouseHotkeyButton.XButton1;
+                return xButton is XButton1 or XButton2;
+            default:
+                return false;
+        }
     }
 
     private void HandleDesktopHotkeyDigit(int digit)
@@ -571,6 +964,32 @@ public partial class MainWindow : Window
         return true;
     }
 
+    private static int GetPressedHotkeyModifiers()
+    {
+        var modifiers = HotkeyModifiers.None;
+        if (IsKeyPressed(VkControl))
+        {
+            modifiers |= HotkeyModifiers.Control;
+        }
+
+        if (IsKeyPressed(VkMenu))
+        {
+            modifiers |= HotkeyModifiers.Alt;
+        }
+
+        if (IsKeyPressed(VkShift))
+        {
+            modifiers |= HotkeyModifiers.Shift;
+        }
+
+        if (IsKeyPressed(VkLeftWindows) || IsKeyPressed(VkRightWindows))
+        {
+            modifiers |= HotkeyModifiers.Windows;
+        }
+
+        return (int)modifiers;
+    }
+
     private static bool IsKeyPressed(int virtualKey)
     {
         return (GetAsyncKeyState(virtualKey) & 0x8000) != 0;
@@ -628,6 +1047,8 @@ public partial class MainWindow : Window
             UnregisterHotkeys();
         }
 
+        ReleaseKeyboardHook();
+        ReleaseMouseHook();
         SaveCurrentSettings();
         _notifyIcon.Visible = false;
         _notifyIcon.Dispose();
@@ -649,6 +1070,37 @@ public partial class MainWindow : Window
         return false;
     }
 
+    private delegate IntPtr LowLevelKeyboardProc(int nCode, IntPtr wParam, IntPtr lParam);
+
+    private delegate IntPtr LowLevelMouseProc(int nCode, IntPtr wParam, IntPtr lParam);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private readonly struct NativePoint
+    {
+        public readonly int X;
+        public readonly int Y;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private readonly struct KeyboardHookData
+    {
+        public readonly int VirtualKeyCode;
+        public readonly int ScanCode;
+        public readonly int Flags;
+        public readonly int Time;
+        public readonly IntPtr ExtraInfo;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private readonly struct MouseHookData
+    {
+        public readonly NativePoint Point;
+        public readonly int MouseData;
+        public readonly int Flags;
+        public readonly int Time;
+        public readonly IntPtr ExtraInfo;
+    }
+
     [DllImport("user32.dll", SetLastError = true)]
     private static extern bool RegisterHotKey(IntPtr hWnd, int id, uint fsModifiers, uint vk);
 
@@ -657,6 +1109,29 @@ public partial class MainWindow : Window
 
     [DllImport("user32.dll")]
     private static extern short GetAsyncKeyState(int vKey);
+
+    [DllImport("user32.dll", EntryPoint = "SetWindowsHookExW", SetLastError = true)]
+    private static extern IntPtr SetKeyboardHook(
+        int idHook,
+        LowLevelKeyboardProc lpfn,
+        IntPtr hmod,
+        uint dwThreadId);
+
+    [DllImport("user32.dll", EntryPoint = "SetWindowsHookExW", SetLastError = true)]
+    private static extern IntPtr SetMouseHook(
+        int idHook,
+        LowLevelMouseProc lpfn,
+        IntPtr hmod,
+        uint dwThreadId);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool UnhookWindowsHookEx(IntPtr hhk);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern IntPtr CallNextHookEx(IntPtr hhk, int nCode, IntPtr wParam, IntPtr lParam);
+
+    [DllImport("kernel32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+    private static extern IntPtr GetModuleHandle(string? lpModuleName);
 
     [DllImport("user32.dll", EntryPoint = "GetWindowLongPtrW", SetLastError = true)]
     private static extern IntPtr GetWindowLongPtr(IntPtr hWnd, int nIndex);

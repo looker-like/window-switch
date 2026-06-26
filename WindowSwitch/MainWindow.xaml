@@ -134,6 +134,11 @@
                     <Setter Property="BorderBrush" Value="#1D4ED8" />
                     <Setter Property="Foreground" Value="White" />
                 </DataTrigger>
+                <DataTrigger Binding="{Binding IsGestureSelected}" Value="True">
+                    <Setter Property="Background" Value="#F59E0B" />
+                    <Setter Property="BorderBrush" Value="#D97706" />
+                    <Setter Property="Foreground" Value="White" />
+                </DataTrigger>
             </Style.Triggers>
         </Style>
     </Window.Resources>
@@ -243,17 +248,20 @@
 
                     <DockPanel IsEnabled="{Binding IsHotkeyEnabled}"
                                Margin="0,0,0,10">
-                        <ComboBox Width="122"
-                                  Margin="0,0,8,0"
-                                  ItemsSource="{Binding HotkeyModifierOptions}"
-                                  DisplayMemberPath="DisplayName"
-                                  SelectedValuePath="Value"
-                                  SelectedValue="{Binding ShowHotkeyModifiers, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                        <ComboBox Width="86"
-                                  ItemsSource="{Binding HotkeyKeyOptions}"
-                                  DisplayMemberPath="DisplayName"
-                                  SelectedValuePath="VirtualKey"
-                                  SelectedValue="{Binding ShowHotkeyVirtualKey, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                        <Button DockPanel.Dock="Right"
+                                Width="66"
+                                Height="26"
+                                Margin="8,0,0,0"
+                                Content="{Binding ShowHotkeyCaptureButtonText}"
+                                Click="RecordShowHotkeyButton_Click" />
+                        <Border BorderBrush="#D5DEE8"
+                                BorderThickness="1"
+                                CornerRadius="4"
+                                Padding="8,5"
+                                Background="#F8FAFC">
+                            <TextBlock Text="{Binding HotkeyText}"
+                                       Style="{StaticResource SettingsLabelStyle}" />
+                        </Border>
                     </DockPanel>
 
                     <CheckBox Content="启用桌面快捷键"
@@ -302,7 +310,8 @@
                 </StackPanel>
             </Border>
 
-            <ItemsControl ItemsSource="{Binding Desktops}">
+            <ItemsControl x:Name="DesktopItems"
+                          ItemsSource="{Binding Desktops}">
                 <ItemsControl.ItemsPanel>
                     <ItemsPanelTemplate>
                         <primitives:UniformGrid Columns="{Binding ColumnsPerRow}" />

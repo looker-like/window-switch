@@ -2,8 +2,10 @@ using WindowSwitch.Models;
 
 namespace WindowSwitch.ViewModels;
 
-public sealed class DesktopButtonViewModel
+public sealed class DesktopButtonViewModel : ObservableObject
 {
+    private bool _isGestureSelected;
+
     public DesktopButtonViewModel(VirtualDesktopInfo desktop)
     {
         Id = desktop.Id;
@@ -19,6 +21,12 @@ public sealed class DesktopButtonViewModel
     public string Name { get; }
 
     public bool IsCurrent { get; }
+
+    public bool IsGestureSelected
+    {
+        get => _isGestureSelected;
+        set => SetProperty(ref _isGestureSelected, value);
+    }
 
     public string DisplayName => string.IsNullOrWhiteSpace(Name) ? $"Desktop {Index}" : Name;
 }

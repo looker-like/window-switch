@@ -113,7 +113,9 @@ public sealed class MainWindowViewModelTests
             isDesktopHotkeysEnabled: false,
             showHotkeyModifiers: (int)(HotkeyModifiers.Control | HotkeyModifiers.Shift),
             showHotkeyVirtualKey: 0x71,
-            desktopHotkeyModifiers: (int)(HotkeyModifiers.Alt | HotkeyModifiers.Shift));
+            desktopHotkeyModifiers: (int)(HotkeyModifiers.Alt | HotkeyModifiers.Shift),
+            showHotkeyKind: (int)ShowHotkeyKind.Keyboard,
+            showHotkeyMouseButton: (int)MouseHotkeyButton.XButton1);
 
         using var viewModel = new MainWindowViewModel(fake, settings);
 
@@ -124,6 +126,8 @@ public sealed class MainWindowViewModelTests
         Assert.False(viewModel.IsDesktopHotkeysEnabled);
         Assert.Equal((int)(HotkeyModifiers.Control | HotkeyModifiers.Shift), viewModel.ShowHotkeyModifiers);
         Assert.Equal(0x71, viewModel.ShowHotkeyVirtualKey);
+        Assert.Equal(ShowHotkeyKind.Keyboard, viewModel.ShowHotkeyKind);
+        Assert.Equal(MouseHotkeyButton.XButton1, viewModel.ShowHotkeyMouseButton);
         Assert.Equal("Ctrl + Shift + F2", viewModel.HotkeyText);
         Assert.Equal((int)(HotkeyModifiers.Alt | HotkeyModifiers.Shift), viewModel.DesktopHotkeyModifiers);
         Assert.Equal("Alt + Shift + 数字", viewModel.DesktopHotkeyText);
@@ -143,7 +147,9 @@ public sealed class MainWindowViewModelTests
             windowOpacity: 0.1,
             showHotkeyModifiers: 0,
             showHotkeyVirtualKey: 0x31,
-            desktopHotkeyModifiers: 0xFFFF);
+            desktopHotkeyModifiers: 0xFFFF,
+            showHotkeyKind: 99,
+            showHotkeyMouseButton: 99);
 
         using var viewModel = new MainWindowViewModel(fake, settings);
 
@@ -151,8 +157,69 @@ public sealed class MainWindowViewModelTests
         Assert.Equal(0.35, viewModel.WindowOpacity);
         Assert.Equal(35, viewModel.WindowOpacityPercent);
         Assert.Equal(HotkeyDefinitions.DefaultHotkeyModifiers, viewModel.ShowHotkeyModifiers);
-        Assert.Equal(HotkeyDefinitions.DefaultShowHotkeyVirtualKey, viewModel.ShowHotkeyVirtualKey);
+        Assert.Equal(0x31, viewModel.ShowHotkeyVirtualKey);
         Assert.Equal(HotkeyDefinitions.DefaultHotkeyModifiers, viewModel.DesktopHotkeyModifiers);
+        Assert.Equal(HotkeyDefinitions.DefaultShowHotkeyKind, viewModel.ShowHotkeyKind);
+        Assert.Equal(HotkeyDefinitions.DefaultShowHotkeyMouseButton, viewModel.ShowHotkeyMouseButton);
+    }
+
+    [Fact]
+    public void CapturedKeyboardHotkeyUpdatesDisplayText()
+    {
+        using var viewModel = new MainWindowViewModel(new FakeVirtualDesktopService());
+
+        viewModel.ApplyCapturedShowHotkey(new CapturedShowHotkey(
+            ShowHotkeyKind.Keyboard,
+            (int)(HotkeyModifiers.Alt | HotkeyModifiers.Shift),
+            0x31,
+            MouseHotkeyButton.Middle));
+
+        Assert.Equal(ShowHotkeyKind.Keyboard, viewModel.ShowHotkeyKind);
+        Assert.Equal((int)(HotkeyModifiers.Alt | HotkeyModifiers.Shift), viewModel.ShowHotkeyModifiers);
+        Assert.Equal(0x31, viewModel.ShowHotkeyVirtualKey);
+        Assert.Equal("Alt + Shift + 1", viewModel.HotkeyText);
+    }
+
+    [Fact]
+    public void CapturedMouseHotkeyUpdatesDisplayText()
+    {
+        using var viewModel = new MainWindowViewModel(new FakeVirtualDesktopService());
+
+        viewModel.ApplyCapturedShowHotkey(new CapturedShowHotkey(
+            ShowHotkeyKind.MouseButton,
+            HotkeyDefinitions.DefaultHotkeyModifiers,
+            HotkeyDefinitions.DefaultShowHotkeyVirtualKey,
+            MouseHotkeyButton.XButton2));
+
+        Assert.Equal(ShowHotkeyKind.MouseButton, viewModel.ShowHotkeyKind);
+        Assert.Equal(MouseHotkeyButton.XButton2, viewModel.ShowHotkeyMouseButton);
+        Assert.Equal("鼠标侧键 2", viewModel.HotkeyText);
+    }
+
+    [Fact]
+    public void GestureSelectionMarksOnlySelectedDesktop()
+    {
+        var first = Guid.NewGuid();
+        var second = Guid.NewGuid();
+        var fake = new FakeVirtualDesktopService
+        {
+            Desktops =
+            [
+                new VirtualDesktopInfo(first, 1, "One", false),
+                new VirtualDesktopInfo(second, 2, "Two", true),
+            ],
+        };
+        using var viewModel = new MainWindowViewModel(fake);
+
+        viewModel.SetGestureSelectedDesktop(first);
+
+        Assert.True(viewModel.Desktops[0].IsGestureSelected);
+        Assert.False(viewModel.Desktops[1].IsGestureSelected);
+
+        viewModel.ClearGestureSelection();
+
+        Assert.False(viewModel.Desktops[0].IsGestureSelected);
+        Assert.False(viewModel.Desktops[1].IsGestureSelected);
     }
 
     [Fact]
