@@ -21,6 +21,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     private bool _startHidden = true;
     private bool _autoHideAfterSwitch;
     private bool _isHotkeyEnabled = true;
+    private bool _isDesktopHotkeysEnabled = true;
     private int _columnsPerRow = WindowSettings.DefaultColumnsPerRow;
     private double _windowOpacity = WindowSettings.DefaultWindowOpacity;
 
@@ -89,6 +90,14 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     }
 
     public string HotkeyText => "Ctrl + Alt + Space";
+
+    public bool IsDesktopHotkeysEnabled
+    {
+        get => _isDesktopHotkeysEnabled;
+        set => SetProperty(ref _isDesktopHotkeysEnabled, value);
+    }
+
+    public string DesktopHotkeyText => "Ctrl + Alt + 1-9";
 
     public int ColumnsPerRow
     {
@@ -168,6 +177,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         _startHidden = settings.StartHidden;
         _autoHideAfterSwitch = settings.AutoHideAfterSwitch;
         _isHotkeyEnabled = settings.IsHotkeyEnabled;
+        _isDesktopHotkeysEnabled = settings.IsDesktopHotkeysEnabled;
         _columnsPerRow = Clamp(settings.ColumnsPerRow, MinColumnsPerRow, MaxColumnsPerRow);
         _windowOpacity = Clamp(settings.WindowOpacity, MinWindowOpacity, MaxWindowOpacity);
     }

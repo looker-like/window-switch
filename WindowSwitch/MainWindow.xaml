@@ -220,9 +220,15 @@
                               Foreground="#2F3A4A" />
 
                     <CheckBox IsChecked="{Binding IsHotkeyEnabled, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                              Margin="0,0,0,12"
+                              Margin="0,0,0,8"
                               Foreground="#2F3A4A">
                         <TextBlock Text="{Binding HotkeyText, StringFormat=启用快捷键 {0}}" />
+                    </CheckBox>
+
+                    <CheckBox IsChecked="{Binding IsDesktopHotkeysEnabled, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                              Margin="0,0,0,12"
+                              Foreground="#2F3A4A">
+                        <TextBlock Text="{Binding DesktopHotkeyText, StringFormat=启用桌面快捷键 {0}}" />
                     </CheckBox>
 
                     <DockPanel Margin="0,0,0,12">

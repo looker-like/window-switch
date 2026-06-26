@@ -109,7 +109,8 @@ public sealed class MainWindowViewModelTests
             windowOpacity: 0.75,
             startHidden: true,
             autoHideAfterSwitch: true,
-            isHotkeyEnabled: false);
+            isHotkeyEnabled: false,
+            isDesktopHotkeysEnabled: false);
 
         using var viewModel = new MainWindowViewModel(fake, settings);
 
@@ -117,6 +118,7 @@ public sealed class MainWindowViewModelTests
         Assert.True(viewModel.StartHidden);
         Assert.True(viewModel.AutoHideAfterSwitch);
         Assert.False(viewModel.IsHotkeyEnabled);
+        Assert.False(viewModel.IsDesktopHotkeysEnabled);
         Assert.Equal(3, viewModel.ColumnsPerRow);
         Assert.Equal(0.75, viewModel.WindowOpacity);
         Assert.Equal(75, viewModel.WindowOpacityPercent);

@@ -18,6 +18,8 @@ namespace WindowSwitch;
 public partial class MainWindow : Window
 {
     private const int HotkeyId = 0x5753;
+    private const int DesktopHotkeyFirstId = 0x5801;
+    private const int DesktopHotkeyLastId = 0x5809;
     private const int WmHotkey = 0x0312;
     private const uint ModAlt = 0x0001;
     private const uint ModControl = 0x0002;
@@ -40,9 +42,9 @@ public partial class MainWindow : Window
     private readonly MainWindowViewModel _viewModel;
     private readonly WindowSettings _initialSettings;
     private readonly Forms.NotifyIcon _notifyIcon;
+    private readonly List<int> _registeredHotkeyIds = [];
     private HwndSource? _hwndSource;
     private IntPtr _windowHandle;
-    private bool _isHotkeyRegistered;
     private bool _isExitRequested;
     private bool _hasAppliedInitialVisibility;
     private bool _hasPinnedWindowToAllDesktops;
@@ -213,10 +215,12 @@ public partial class MainWindow : Window
             nameof(MainWindowViewModel.WindowOpacity) or
             nameof(MainWindowViewModel.StartHidden) or
             nameof(MainWindowViewModel.AutoHideAfterSwitch) or
-            nameof(MainWindowViewModel.IsHotkeyEnabled))
+            nameof(MainWindowViewModel.IsHotkeyEnabled) or
+            nameof(MainWindowViewModel.IsDesktopHotkeysEnabled))
         {
             ApplyRuntimeSettings();
-            if (e.PropertyName == nameof(MainWindowViewModel.IsHotkeyEnabled))
+            if (e.PropertyName is nameof(MainWindowViewModel.IsHotkeyEnabled) or
+                nameof(MainWindowViewModel.IsDesktopHotkeysEnabled))
             {
                 ApplyHotkeyRegistration();
             }
@@ -270,7 +274,8 @@ public partial class MainWindow : Window
             _viewModel.WindowOpacity,
             _viewModel.StartHidden,
             _viewModel.AutoHideAfterSwitch,
-            _viewModel.IsHotkeyEnabled));
+            _viewModel.IsHotkeyEnabled,
+            _viewModel.IsDesktopHotkeysEnabled));
     }
 
     private void PositionCenterOnMouse()
@@ -373,33 +378,83 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (_isHotkeyRegistered)
+        UnregisterHotkeys();
+
+        var failedHotkeys = new List<string>();
+        if (_viewModel.IsHotkeyEnabled &&
+            !TryRegisterHotkey(HotkeyId, ModControl | ModAlt, VkSpace))
         {
-            UnregisterHotKey(_windowHandle, HotkeyId);
-            _isHotkeyRegistered = false;
+            failedHotkeys.Add(_viewModel.HotkeyText);
         }
 
-        if (!_viewModel.IsHotkeyEnabled)
+        if (_viewModel.IsDesktopHotkeysEnabled)
         {
-            return;
+            for (var index = 1; index <= 9; index++)
+            {
+                var key = (uint)('0' + index);
+                if (!TryRegisterHotkey(DesktopHotkeyFirstId + index - 1, ModControl | ModAlt, key))
+                {
+                    failedHotkeys.Add($"Ctrl + Alt + {index}");
+                }
+            }
         }
 
-        _isHotkeyRegistered = RegisterHotKey(_windowHandle, HotkeyId, ModControl | ModAlt, VkSpace);
-        if (!_isHotkeyRegistered)
+        if (failedHotkeys.Count > 0)
         {
-            _viewModel.SetStatus("快捷键 Ctrl + Alt + Space 注册失败，可能已被其他应用占用。");
+            _viewModel.SetStatus($"快捷键注册失败：{string.Join(", ", failedHotkeys)}。可能已被其他应用占用。");
         }
     }
 
     private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
     {
-        if (msg == WmHotkey && wParam.ToInt32() == HotkeyId)
+        if (msg != WmHotkey)
+        {
+            return IntPtr.Zero;
+        }
+
+        var hotkeyId = wParam.ToInt32();
+        if (hotkeyId == HotkeyId)
         {
             ShowFromBackground();
             handled = true;
         }
+        else if (hotkeyId is >= DesktopHotkeyFirstId and <= DesktopHotkeyLastId)
+        {
+            SwitchDesktopFromHotkey(hotkeyId - DesktopHotkeyFirstId + 1);
+            handled = true;
+        }
 
         return IntPtr.Zero;
+    }
+
+    private bool TryRegisterHotkey(int id, uint modifiers, uint key)
+    {
+        if (!RegisterHotKey(_windowHandle, id, modifiers, key))
+        {
+            return false;
+        }
+
+        _registeredHotkeyIds.Add(id);
+        return true;
+    }
+
+    private void UnregisterHotkeys()
+    {
+        foreach (var id in _registeredHotkeyIds)
+        {
+            UnregisterHotKey(_windowHandle, id);
+        }
+
+        _registeredHotkeyIds.Clear();
+    }
+
+    private void SwitchDesktopFromHotkey(int desktopIndex)
+    {
+        var desktop = _viewModel.Desktops.FirstOrDefault(item => item.Index == desktopIndex);
+        if (desktop is not null)
+        {
+            _viewModel.SwitchDesktopCommand.Execute(desktop.Id);
+        }
     }
 
     private Forms.NotifyIcon CreateNotifyIcon()
@@ -433,10 +488,9 @@ public partial class MainWindow : Window
         _viewModel.PropertyChanged -= ViewModel_PropertyChanged;
         _viewModel.DesktopSwitchCompleted -= ViewModel_DesktopSwitchCompleted;
         _hwndSource?.RemoveHook(WndProc);
-        if (_isHotkeyRegistered && _windowHandle != IntPtr.Zero)
+        if (_windowHandle != IntPtr.Zero)
         {
-            UnregisterHotKey(_windowHandle, HotkeyId);
-            _isHotkeyRegistered = false;
+            UnregisterHotkeys();
         }
 
         SaveCurrentSettings();

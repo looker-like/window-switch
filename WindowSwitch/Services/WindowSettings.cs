@@ -17,7 +17,8 @@ public sealed class WindowSettings
         double windowOpacity = DefaultWindowOpacity,
         bool startHidden = true,
         bool autoHideAfterSwitch = false,
-        bool isHotkeyEnabled = true)
+        bool isHotkeyEnabled = true,
+        bool isDesktopHotkeysEnabled = true)
     {
         Left = left;
         Top = top;
@@ -27,6 +28,7 @@ public sealed class WindowSettings
         StartHidden = startHidden;
         AutoHideAfterSwitch = autoHideAfterSwitch;
         IsHotkeyEnabled = isHotkeyEnabled;
+        IsDesktopHotkeysEnabled = isDesktopHotkeysEnabled;
     }
 
     public double Left { get; init; } = double.NaN;
@@ -44,4 +46,6 @@ public sealed class WindowSettings
     public bool AutoHideAfterSwitch { get; init; }
 
     public bool IsHotkeyEnabled { get; init; } = true;
+
+    public bool IsDesktopHotkeysEnabled { get; init; } = true;
 }
