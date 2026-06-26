@@ -1,0 +1,11 @@
+#!/bin/sh
+set -eu
+
+if [ "${SKIP_WINDOWSWITCH_HOOK:-}" = "1" ]; then
+  echo "WindowSwitch pre-commit hook skipped."
+  exit 0
+fi
+
+echo "Running WindowSwitch pre-commit checks..."
+dotnet format WindowSwitch.sln --verify-no-changes --no-restore
+dotnet test WindowSwitch.sln --no-restore
