@@ -100,7 +100,8 @@
             <Setter Property="Margin" Value="0,0,8,8" />
             <Setter Property="Padding" Value="10,8" />
             <Setter Property="MinHeight" Value="46" />
-            <Setter Property="Width" Value="190" />
+            <Setter Property="MinWidth" Value="0" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
             <Setter Property="Background" Value="#F1F5F9" />
             <Setter Property="BorderBrush" Value="#D8E0EA" />
             <Setter Property="Foreground" Value="#1F2937" />
@@ -148,7 +149,7 @@
     </Window.Resources>
 
     <Border x:Name="RootChrome"
-            Margin="12"
+            Margin="0"
             Padding="10"
             Background="#FAFFFFFF"
             BorderBrush="#31405060"
@@ -326,20 +327,32 @@
                         <Button Style="{StaticResource DesktopButtonStyle}"
                                 Command="{Binding DataContext.SwitchDesktopCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                 CommandParameter="{Binding Id}"
-                                ToolTip="{Binding DisplayName}">
+                                ToolTip="{Binding DisplayName}"
+                                ToolTipOpening="DesktopButton_ToolTipOpening">
                             <Grid>
                                 <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="32" />
-                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" MinWidth="0" />
+                                    <ColumnDefinition Width="4" />
+                                    <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
-                                <TextBlock Grid.Column="0"
-                                           Text="{Binding Index}"
-                                           FontSize="16"
-                                           FontWeight="SemiBold"
-                                           VerticalAlignment="Center" />
-                                <TextBlock Grid.Column="1"
+                                <TextBlock x:Name="DesktopTitleText"
+                                           Grid.Column="0"
                                            Text="{Binding DisplayName}"
                                            FontSize="13"
+                                           TextTrimming="CharacterEllipsis"
+                                           VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="1"
+                                           Text=""
+                                           FontSize="1"
+                                           Width="2"
+                                           VerticalAlignment="Center" />
+                                <TextBlock x:Name="DesktopIndexText"
+                                           Grid.Column="2"
+                                           Text="{Binding Index}"
+                                           FontSize="15"
+                                           FontWeight="SemiBold"
+                                           Foreground="#64748B"
+                                           MaxWidth="12"
                                            TextTrimming="CharacterEllipsis"
                                            VerticalAlignment="Center" />
                             </Grid>

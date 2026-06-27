@@ -213,6 +213,21 @@ public partial class MainWindow : Window
         SettingsPanel.Visibility = SettingsButton.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
     }
 
+    private void DesktopButton_ToolTipOpening(object sender, ToolTipEventArgs e)
+    {
+        if (sender is not System.Windows.Controls.Button button)
+        {
+            return;
+        }
+
+        var title = button.Template.FindName("DesktopTitleText", button) as TextBlock;
+        var index = button.Template.FindName("DesktopIndexText", button) as TextBlock;
+        var isTitleTrimmed = title is not null && title.ActualWidth > 0 && title.DesiredSize.Width > title.ActualWidth + 0.5;
+        var isIndexTrimmed = index is not null && index.ActualWidth > 0 && index.DesiredSize.Width > index.ActualWidth + 0.5;
+
+        e.Handled = !(isTitleTrimmed || isIndexTrimmed);
+    }
+
     private void RecordShowHotkeyButton_Click(object sender, RoutedEventArgs e)
     {
         if (_viewModel.IsCapturingShowHotkey)
@@ -564,6 +579,16 @@ public partial class MainWindow : Window
             return;
         }
 
+        if (!IsScreenPointInsideWindow(point))
+        {
+            _isMouseActivationGestureActive = false;
+            _activeMouseActivationButton = null;
+            _mouseGestureSelectedDesktopId = null;
+            _viewModel.ClearGestureSelection();
+            HideToBackground();
+            return;
+        }
+
         var desktop = GetDesktopUnderScreenPoint(point);
         _mouseGestureSelectedDesktopId = desktop?.Id;
         _viewModel.SetGestureSelectedDesktop(_mouseGestureSelectedDesktopId);
@@ -594,6 +619,17 @@ public partial class MainWindow : Window
         {
             HideToBackground();
         }
+    }
+
+    private bool IsScreenPointInsideWindow(NativePoint point)
+    {
+        var transform = PresentationSource.FromVisual(this)?.CompositionTarget?.TransformFromDevice
+            ?? Matrix.Identity;
+        var transformed = transform.Transform(new System.Windows.Point(point.X, point.Y));
+        return transformed.X >= Left &&
+            transformed.X <= Left + ActualWidth &&
+            transformed.Y >= Top &&
+            transformed.Y <= Top + ActualHeight;
     }
 
     private DesktopButtonViewModel? GetDesktopUnderScreenPoint(NativePoint point)
