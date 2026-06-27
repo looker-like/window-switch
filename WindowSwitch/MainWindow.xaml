@@ -327,13 +327,14 @@
                         <Button Style="{StaticResource DesktopButtonStyle}"
                                 Command="{Binding DataContext.SwitchDesktopCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                 CommandParameter="{Binding Id}"
-                                ToolTip="{Binding DisplayName}"
-                                ToolTipOpening="DesktopButton_ToolTipOpening">
+                                Loaded="DesktopButton_Loaded"
+                                SizeChanged="DesktopButton_SizeChanged"
+                                ToolTip="{Binding DisplayName}">
                             <Grid>
                                 <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" MinWidth="0" />
+                                    <ColumnDefinition Width="2" />
                                     <ColumnDefinition Width="*" MinWidth="0" />
-                                    <ColumnDefinition Width="4" />
-                                    <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
                                 <TextBlock x:Name="DesktopTitleText"
                                            Grid.Column="0"
@@ -344,7 +345,7 @@
                                 <TextBlock Grid.Column="1"
                                            Text=""
                                            FontSize="1"
-                                           Width="2"
+                                           Width="0"
                                            VerticalAlignment="Center" />
                                 <TextBlock x:Name="DesktopIndexText"
                                            Grid.Column="2"
@@ -352,7 +353,7 @@
                                            FontSize="15"
                                            FontWeight="SemiBold"
                                            Foreground="#64748B"
-                                           MaxWidth="12"
+                                           MinWidth="0"
                                            TextTrimming="CharacterEllipsis"
                                            VerticalAlignment="Center" />
                             </Grid>

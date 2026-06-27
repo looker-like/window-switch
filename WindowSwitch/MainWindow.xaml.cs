@@ -213,19 +213,53 @@ public partial class MainWindow : Window
         SettingsPanel.Visibility = SettingsButton.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
     }
 
-    private void DesktopButton_ToolTipOpening(object sender, ToolTipEventArgs e)
+    private void DesktopButton_Loaded(object sender, RoutedEventArgs e)
     {
-        if (sender is not System.Windows.Controls.Button button)
+        UpdateDesktopButtonToolTip(sender as System.Windows.Controls.Button);
+    }
+
+    private void DesktopButton_SizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        UpdateDesktopButtonToolTip(sender as System.Windows.Controls.Button);
+    }
+
+    private static void UpdateDesktopButtonToolTip(System.Windows.Controls.Button? button)
+    {
+        if (button?.DataContext is not DesktopButtonViewModel viewModel)
         {
             return;
         }
 
-        var title = button.Template.FindName("DesktopTitleText", button) as TextBlock;
-        var index = button.Template.FindName("DesktopIndexText", button) as TextBlock;
+        button.ApplyTemplate();
+        button.UpdateLayout();
+
+        var title = FindDescendant<TextBlock>(button, "DesktopTitleText");
+        var index = FindDescendant<TextBlock>(button, "DesktopIndexText");
         var isTitleTrimmed = title is not null && title.ActualWidth > 0 && title.DesiredSize.Width > title.ActualWidth + 0.5;
         var isIndexTrimmed = index is not null && index.ActualWidth > 0 && index.DesiredSize.Width > index.ActualWidth + 0.5;
 
-        e.Handled = !(isTitleTrimmed || isIndexTrimmed);
+        button.ToolTip = isTitleTrimmed || isIndexTrimmed ? viewModel.DisplayName : null;
+    }
+
+    private static T? FindDescendant<T>(DependencyObject root, string name)
+        where T : FrameworkElement
+    {
+        for (var i = 0; i < VisualTreeHelper.GetChildrenCount(root); i++)
+        {
+            var child = VisualTreeHelper.GetChild(root, i);
+            if (child is T element && element.Name == name)
+            {
+                return element;
+            }
+
+            var nested = FindDescendant<T>(child, name);
+            if (nested is not null)
+            {
+                return nested;
+            }
+        }
+
+        return null;
     }
 
     private void RecordShowHotkeyButton_Click(object sender, RoutedEventArgs e)
@@ -581,11 +615,8 @@ public partial class MainWindow : Window
 
         if (!IsScreenPointInsideWindow(point))
         {
-            _isMouseActivationGestureActive = false;
-            _activeMouseActivationButton = null;
             _mouseGestureSelectedDesktopId = null;
             _viewModel.ClearGestureSelection();
-            HideToBackground();
             return;
         }
 
@@ -601,6 +632,7 @@ public partial class MainWindow : Window
             return;
         }
 
+        var isInsideWindow = IsScreenPointInsideWindow(point);
         UpdateMouseGestureSelection(point);
         var selectedId = _mouseGestureSelectedDesktopId;
         var shouldHideAfterGesture = !_wasVisibleBeforeMouseGesture;
@@ -615,7 +647,7 @@ public partial class MainWindow : Window
             _viewModel.SwitchDesktopCommand.Execute(id);
         }
 
-        if (shouldHideAfterGesture && !_viewModel.AutoHideAfterSwitch)
+        if (!isInsideWindow || (shouldHideAfterGesture && !_viewModel.AutoHideAfterSwitch))
         {
             HideToBackground();
         }
