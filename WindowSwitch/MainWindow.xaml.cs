@@ -89,6 +89,7 @@ public partial class MainWindow : Window
     private bool _isMouseActivationGestureActive;
     private bool _wasVisibleBeforeMouseGesture;
     private Guid? _mouseGestureSelectedDesktopId;
+    private VirtualDesktopAction? _mouseGestureSelectedAction;
     private MouseHotkeyButton? _activeMouseActivationButton;
 
     public MainWindow(MainWindowViewModel viewModel, IWindowSettingsStore settingsStore, WindowSettings initialSettings)
@@ -601,6 +602,7 @@ public partial class MainWindow : Window
         _activeMouseActivationButton = button;
         _wasVisibleBeforeMouseGesture = IsVisible;
         _mouseGestureSelectedDesktopId = null;
+        _mouseGestureSelectedAction = null;
 
         ShowFromBackground();
         UpdateMouseGestureSelection(point);
@@ -616,13 +618,17 @@ public partial class MainWindow : Window
         if (!IsScreenPointInsideWindow(point))
         {
             _mouseGestureSelectedDesktopId = null;
+            _mouseGestureSelectedAction = null;
             _viewModel.ClearGestureSelection();
             return;
         }
 
+        var action = GetVirtualDesktopActionUnderScreenPoint(point);
         var desktop = GetDesktopUnderScreenPoint(point);
-        _mouseGestureSelectedDesktopId = desktop?.Id;
+        _mouseGestureSelectedAction = action?.Action;
+        _mouseGestureSelectedDesktopId = action is null ? desktop?.Id : null;
         _viewModel.SetGestureSelectedDesktop(_mouseGestureSelectedDesktopId);
+        _viewModel.SetGestureSelectedVirtualDesktopAction(_mouseGestureSelectedAction);
     }
 
     private void CompleteMouseActivationGesture(NativePoint point)
@@ -635,16 +641,22 @@ public partial class MainWindow : Window
         var isInsideWindow = IsScreenPointInsideWindow(point);
         UpdateMouseGestureSelection(point);
         var selectedId = _mouseGestureSelectedDesktopId;
+        var selectedAction = _mouseGestureSelectedAction;
         var shouldHideAfterGesture = !_wasVisibleBeforeMouseGesture;
 
         _isMouseActivationGestureActive = false;
         _activeMouseActivationButton = null;
         _mouseGestureSelectedDesktopId = null;
+        _mouseGestureSelectedAction = null;
         _viewModel.ClearGestureSelection();
 
         if (selectedId is Guid id)
         {
             _viewModel.SwitchDesktopCommand.Execute(id);
+        }
+        else if (selectedAction is VirtualDesktopAction action)
+        {
+            _viewModel.ExecuteVirtualDesktopActionCommand.Execute(action);
         }
 
         if (!isInsideWindow || (shouldHideAfterGesture && !_viewModel.AutoHideAfterSwitch))
@@ -678,6 +690,28 @@ public partial class MainWindow : Window
             if (hit is FrameworkElement { DataContext: DesktopButtonViewModel desktop })
             {
                 return desktop;
+            }
+
+            hit = VisualTreeHelper.GetParent(hit);
+        }
+
+        return null;
+    }
+
+    private VirtualDesktopActionButtonViewModel? GetVirtualDesktopActionUnderScreenPoint(NativePoint point)
+    {
+        if (!IsVisible)
+        {
+            return null;
+        }
+
+        var hitPoint = VirtualDesktopActionItems.PointFromScreen(new System.Windows.Point(point.X, point.Y));
+        var hit = VirtualDesktopActionItems.InputHitTest(hitPoint) as DependencyObject;
+        while (hit is not null)
+        {
+            if (hit is FrameworkElement { DataContext: VirtualDesktopActionButtonViewModel action })
+            {
+                return action;
             }
 
             hit = VisualTreeHelper.GetParent(hit);

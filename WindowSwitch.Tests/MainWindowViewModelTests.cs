@@ -277,6 +277,83 @@ public sealed class MainWindowViewModelTests
         Assert.True(raised);
     }
 
+    [Fact]
+    public void VirtualDesktopActionsExposeRequestedShortcuts()
+    {
+        using var viewModel = new MainWindowViewModel(new FakeVirtualDesktopService());
+
+        Assert.Collection(
+            viewModel.VirtualDesktopActions,
+            action =>
+            {
+                Assert.Equal(VirtualDesktopAction.OpenTaskView, action.Action);
+                Assert.Equal("打开任务视图", action.DisplayName);
+                Assert.Equal("Win + Tab", action.ShortcutText);
+            },
+            action =>
+            {
+                Assert.Equal(VirtualDesktopAction.CreateDesktop, action.Action);
+                Assert.Equal("新建虚拟桌面", action.DisplayName);
+                Assert.Equal("Win + Ctrl + D", action.ShortcutText);
+            },
+            action =>
+            {
+                Assert.Equal(VirtualDesktopAction.SwitchLeft, action.Action);
+                Assert.Equal("切到左侧桌面", action.DisplayName);
+                Assert.Equal("Win + Ctrl + ←", action.ShortcutText);
+            },
+            action =>
+            {
+                Assert.Equal(VirtualDesktopAction.SwitchRight, action.Action);
+                Assert.Equal("切到右侧桌面", action.DisplayName);
+                Assert.Equal("Win + Ctrl + →", action.ShortcutText);
+            },
+            action =>
+            {
+                Assert.Equal(VirtualDesktopAction.CloseCurrentDesktop, action.Action);
+                Assert.Equal("关闭当前虚拟桌面", action.DisplayName);
+                Assert.Equal("Win + Ctrl + F4", action.ShortcutText);
+            });
+    }
+
+    [Fact]
+    public void VirtualDesktopActionCommandExecutesServiceActionAndRaisesCompletionEvent()
+    {
+        var fake = new FakeVirtualDesktopService
+        {
+            Desktops =
+            [
+                new VirtualDesktopInfo(Guid.NewGuid(), 1, "One", true),
+            ],
+        };
+        using var viewModel = new MainWindowViewModel(fake);
+        var raised = false;
+        viewModel.DesktopSwitchCompleted += (_, _) => raised = true;
+
+        viewModel.ExecuteVirtualDesktopActionCommand.Execute(VirtualDesktopAction.CreateDesktop);
+
+        Assert.Equal(VirtualDesktopAction.CreateDesktop, fake.LastAction);
+        Assert.True(raised);
+        Assert.Single(viewModel.Desktops);
+    }
+
+    [Fact]
+    public void GestureSelectionMarksOnlySelectedVirtualDesktopAction()
+    {
+        using var viewModel = new MainWindowViewModel(new FakeVirtualDesktopService());
+
+        viewModel.SetGestureSelectedVirtualDesktopAction(VirtualDesktopAction.SwitchRight);
+
+        Assert.True(viewModel.VirtualDesktopActions.Single(action => action.Action == VirtualDesktopAction.SwitchRight).IsGestureSelected);
+        Assert.All(
+            viewModel.VirtualDesktopActions.Where(action => action.Action != VirtualDesktopAction.SwitchRight),
+            action => Assert.False(action.IsGestureSelected));
+
+        viewModel.ClearGestureSelection();
+
+        Assert.All(viewModel.VirtualDesktopActions, action => Assert.False(action.IsGestureSelected));
+    }
+
     private sealed class FakeVirtualDesktopService : IVirtualDesktopService
     {
         public event EventHandler? DesktopsChanged;
@@ -284,6 +361,8 @@ public sealed class MainWindowViewModelTests
         public IReadOnlyList<VirtualDesktopInfo> Desktops { get; set; } = [];
 
         public Guid? LastSwitchedTo { get; private set; }
+
+        public VirtualDesktopAction? LastAction { get; private set; }
 
         public IReadOnlyList<VirtualDesktopInfo> GetDesktops()
         {
@@ -293,6 +372,11 @@ public sealed class MainWindowViewModelTests
         public void SwitchTo(Guid id)
         {
             LastSwitchedTo = id;
+        }
+
+        public void ExecuteAction(VirtualDesktopAction action)
+        {
+            LastAction = action;
         }
 
         public void RaiseDesktopsChanged()

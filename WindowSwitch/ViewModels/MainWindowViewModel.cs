@@ -45,6 +45,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         ApplySettings(settings ?? new WindowSettings());
 
         SwitchDesktopCommand = new RelayCommand(SwitchDesktop, parameter => parameter is Guid);
+        ExecuteVirtualDesktopActionCommand = new RelayCommand(ExecuteVirtualDesktopAction, parameter => parameter is VirtualDesktopAction);
         RefreshCommand = new RelayCommand(_ => Refresh());
 
         _desktopService.DesktopsChanged += _desktopsChangedHandler;
@@ -55,6 +56,15 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
     public ObservableCollection<DesktopButtonViewModel> Desktops { get; } = [];
 
+    public IReadOnlyList<VirtualDesktopActionButtonViewModel> VirtualDesktopActions { get; } =
+    [
+        new(VirtualDesktopAction.OpenTaskView, "\uE7C4", "打开任务视图", "Win + Tab"),
+        new(VirtualDesktopAction.CreateDesktop, "\uE710", "新建虚拟桌面", "Win + Ctrl + D"),
+        new(VirtualDesktopAction.SwitchLeft, "\uE72B", "切到左侧桌面", "Win + Ctrl + ←"),
+        new(VirtualDesktopAction.SwitchRight, "\uE72A", "切到右侧桌面", "Win + Ctrl + →"),
+        new(VirtualDesktopAction.CloseCurrentDesktop, "\uE711", "关闭当前虚拟桌面", "Win + Ctrl + F4"),
+    ];
+
     public IReadOnlyList<int> ColumnOptions { get; } = [1, 2, 3, 4];
 
     public IReadOnlyList<HotkeyModifierOption> HotkeyModifierOptions => HotkeyDefinitions.ModifierOptions;
@@ -62,6 +72,8 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     public IReadOnlyList<HotkeyKeyOption> HotkeyKeyOptions => HotkeyDefinitions.KeyOptions;
 
     public ICommand SwitchDesktopCommand { get; }
+
+    public ICommand ExecuteVirtualDesktopActionCommand { get; }
 
     public ICommand RefreshCommand { get; }
 
@@ -271,6 +283,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     public void ClearGestureSelection()
     {
         SetGestureSelectedDesktop(null);
+        SetGestureSelectedVirtualDesktopAction(null);
     }
 
     public void SetGestureSelectedDesktop(Guid? id)
@@ -278,6 +291,14 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         foreach (var desktop in Desktops)
         {
             desktop.IsGestureSelected = id.HasValue && desktop.Id == id.Value;
+        }
+    }
+
+    public void SetGestureSelectedVirtualDesktopAction(VirtualDesktopAction? action)
+    {
+        foreach (var virtualDesktopAction in VirtualDesktopActions)
+        {
+            virtualDesktopAction.IsGestureSelected = action.HasValue && virtualDesktopAction.Action == action.Value;
         }
     }
 
@@ -296,6 +317,25 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         try
         {
             _desktopService.SwitchTo(id);
+            Refresh();
+            DesktopSwitchCompleted?.Invoke(this, EventArgs.Empty);
+        }
+        catch (Exception ex)
+        {
+            SetStatus(ex.Message);
+        }
+    }
+
+    private void ExecuteVirtualDesktopAction(object? parameter)
+    {
+        if (parameter is not VirtualDesktopAction action)
+        {
+            return;
+        }
+
+        try
+        {
+            _desktopService.ExecuteAction(action);
             Refresh();
             DesktopSwitchCompleted?.Invoke(this, EventArgs.Empty);
         }

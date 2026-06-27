@@ -9,4 +9,6 @@ public interface IVirtualDesktopService
     IReadOnlyList<VirtualDesktopInfo> GetDesktops();
 
     void SwitchTo(Guid id);
+
+    void ExecuteAction(VirtualDesktopAction action);
 }

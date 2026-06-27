@@ -1,10 +1,21 @@
 using WindowSwitch.Models;
 using WindowsDesktop;
+using System.Runtime.InteropServices;
 
 namespace WindowSwitch.Services;
 
 public sealed class WindowsVirtualDesktopService : IVirtualDesktopService
 {
+    private const ushort VkTab = 0x09;
+    private const ushort VkLeft = 0x25;
+    private const ushort VkRight = 0x27;
+    private const ushort VkD = 0x44;
+    private const ushort VkF4 = 0x73;
+    private const ushort VkLeftWindows = 0x5B;
+    private const ushort VkControl = 0x11;
+    private const uint InputKeyboard = 1;
+    private const uint KeyEventKeyUp = 0x0002;
+
     public event EventHandler? DesktopsChanged;
 
     public WindowsVirtualDesktopService()
@@ -39,6 +50,30 @@ public sealed class WindowsVirtualDesktopService : IVirtualDesktopService
         desktop.Switch();
     }
 
+    public void ExecuteAction(VirtualDesktopAction action)
+    {
+        switch (action)
+        {
+            case VirtualDesktopAction.OpenTaskView:
+                SendShortcut(VkLeftWindows, VkTab);
+                break;
+            case VirtualDesktopAction.CreateDesktop:
+                SendShortcut(VkLeftWindows, VkControl, VkD);
+                break;
+            case VirtualDesktopAction.SwitchRight:
+                SendShortcut(VkLeftWindows, VkControl, VkRight);
+                break;
+            case VirtualDesktopAction.SwitchLeft:
+                SendShortcut(VkLeftWindows, VkControl, VkLeft);
+                break;
+            case VirtualDesktopAction.CloseCurrentDesktop:
+                SendShortcut(VkLeftWindows, VkControl, VkF4);
+                break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(action), action, null);
+        }
+    }
+
     private static void EnsureSupported()
     {
         if (!VirtualDesktop.IsSupported)
@@ -68,4 +103,59 @@ public sealed class WindowsVirtualDesktopService : IVirtualDesktopService
     {
         DesktopsChanged?.Invoke(this, EventArgs.Empty);
     }
+
+    private static void SendShortcut(params ushort[] virtualKeys)
+    {
+        var inputs = new NativeInput[virtualKeys.Length * 2];
+        var index = 0;
+
+        foreach (var virtualKey in virtualKeys)
+        {
+            inputs[index++] = CreateKeyboardInput(virtualKey, 0);
+        }
+
+        for (var i = virtualKeys.Length - 1; i >= 0; i--)
+        {
+            inputs[index++] = CreateKeyboardInput(virtualKeys[i], KeyEventKeyUp);
+        }
+
+        var sent = SendInput((uint)inputs.Length, inputs, Marshal.SizeOf<NativeInput>());
+        if (sent != inputs.Length)
+        {
+            throw new InvalidOperationException("无法发送 Windows 虚拟桌面快捷键。");
+        }
+    }
+
+    private static NativeInput CreateKeyboardInput(ushort virtualKey, uint flags)
+    {
+        return new NativeInput
+        {
+            Type = InputKeyboard,
+            Keyboard = new KeyboardInput
+            {
+                VirtualKey = virtualKey,
+                Flags = flags,
+            },
+        };
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct NativeInput
+    {
+        public uint Type;
+        public KeyboardInput Keyboard;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct KeyboardInput
+    {
+        public ushort VirtualKey;
+        public ushort ScanCode;
+        public uint Flags;
+        public uint Time;
+        public IntPtr ExtraInfo;
+    }
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern uint SendInput(uint inputCount, NativeInput[] inputs, int inputSize);
 }
