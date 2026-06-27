@@ -15,6 +15,7 @@ public sealed class WindowsVirtualDesktopService : IVirtualDesktopService
     private const ushort VkControl = 0x11;
     private const uint InputKeyboard = 1;
     private const uint KeyEventKeyUp = 0x0002;
+    private static readonly int NativeInputSize = Marshal.SizeOf<NativeInput>();
 
     public event EventHandler? DesktopsChanged;
 
@@ -119,10 +120,10 @@ public sealed class WindowsVirtualDesktopService : IVirtualDesktopService
             inputs[index++] = CreateKeyboardInput(virtualKeys[i], KeyEventKeyUp);
         }
 
-        var sent = SendInput((uint)inputs.Length, inputs, Marshal.SizeOf<NativeInput>());
+        var sent = SendInput((uint)inputs.Length, inputs, NativeInputSize);
         if (sent != inputs.Length)
         {
-            throw new InvalidOperationException("无法发送 Windows 虚拟桌面快捷键。");
+            throw new InvalidOperationException($"无法发送 Windows 虚拟桌面快捷键。Win32 错误码：{Marshal.GetLastPInvokeError()}。");
         }
     }
 
@@ -131,10 +132,13 @@ public sealed class WindowsVirtualDesktopService : IVirtualDesktopService
         return new NativeInput
         {
             Type = InputKeyboard,
-            Keyboard = new KeyboardInput
+            Union = new InputUnion
             {
-                VirtualKey = virtualKey,
-                Flags = flags,
+                Keyboard = new KeyboardInput
+                {
+                    VirtualKey = virtualKey,
+                    Flags = flags,
+                },
             },
         };
     }
@@ -143,7 +147,31 @@ public sealed class WindowsVirtualDesktopService : IVirtualDesktopService
     private struct NativeInput
     {
         public uint Type;
+        public InputUnion Union;
+    }
+
+    [StructLayout(LayoutKind.Explicit)]
+    private struct InputUnion
+    {
+        [FieldOffset(0)]
+        public MouseInput Mouse;
+
+        [FieldOffset(0)]
         public KeyboardInput Keyboard;
+
+        [FieldOffset(0)]
+        public HardwareInput Hardware;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct MouseInput
+    {
+        public int X;
+        public int Y;
+        public uint MouseData;
+        public uint Flags;
+        public uint Time;
+        public IntPtr ExtraInfo;
     }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -154,6 +182,14 @@ public sealed class WindowsVirtualDesktopService : IVirtualDesktopService
         public uint Flags;
         public uint Time;
         public IntPtr ExtraInfo;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct HardwareInput
+    {
+        public uint Message;
+        public ushort ParamLow;
+        public ushort ParamHigh;
     }
 
     [DllImport("user32.dll", SetLastError = true)]
