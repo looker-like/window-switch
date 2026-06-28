@@ -126,6 +126,10 @@
                             <Trigger Property="IsPressed" Value="True">
                                 <Setter TargetName="Chrome" Property="Background" Value="#D6E2F1" />
                             </Trigger>
+                            <DataTrigger Binding="{Binding DataContext.IsGestureSelected, RelativeSource={RelativeSource TemplatedParent}}" Value="True">
+                                <Setter TargetName="Chrome" Property="Background" Value="#F59E0B" />
+                                <Setter TargetName="Chrome" Property="BorderBrush" Value="#D97706" />
+                            </DataTrigger>
                             <Trigger Property="IsEnabled" Value="False">
                                 <Setter TargetName="Chrome" Property="Opacity" Value="0.55" />
                             </Trigger>
@@ -175,6 +179,10 @@
                             <Trigger Property="IsPressed" Value="True">
                                 <Setter TargetName="Chrome" Property="Background" Value="#D6E2F1" />
                             </Trigger>
+                            <DataTrigger Binding="{Binding DataContext.IsGestureSelected, RelativeSource={RelativeSource TemplatedParent}}" Value="True">
+                                <Setter TargetName="Chrome" Property="Background" Value="#F59E0B" />
+                                <Setter TargetName="Chrome" Property="BorderBrush" Value="#D97706" />
+                            </DataTrigger>
                             <Trigger Property="IsEnabled" Value="False">
                                 <Setter TargetName="Chrome" Property="Opacity" Value="0.55" />
                             </Trigger>

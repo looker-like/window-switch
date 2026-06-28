@@ -72,6 +72,7 @@ public partial class MainWindow : Window
     private readonly LowLevelKeyboardProc _keyboardHookCallback;
     private readonly LowLevelMouseProc _mouseHookCallback;
     private readonly IWindowSettingsStore _settingsStore;
+    private readonly object _mouseGestureQueueLock = new();
     private readonly DispatcherTimer _refreshTimer;
     private readonly DispatcherTimer _settingsSaveTimer;
     private readonly DispatcherTimer _desktopHotkeySequenceTimer;
@@ -92,6 +93,8 @@ public partial class MainWindow : Window
     private Guid? _mouseGestureSelectedDesktopId;
     private VirtualDesktopAction? _mouseGestureSelectedAction;
     private MouseHotkeyButton? _activeMouseActivationButton;
+    private NativePoint _pendingMouseGesturePoint;
+    private bool _isMouseGestureUpdateQueued;
 
     public MainWindow(MainWindowViewModel viewModel, IWindowSettingsStore settingsStore, WindowSettings initialSettings)
     {
@@ -242,9 +245,6 @@ public partial class MainWindow : Window
             return;
         }
 
-        button.ApplyTemplate();
-        button.UpdateLayout();
-
         var title = FindDescendant<TextBlock>(button, "DesktopTitleText");
         var index = FindDescendant<TextBlock>(button, "DesktopIndexText");
         var spacer = FindDescendant<Border>(button, "DesktopIndexSpacer");
@@ -267,9 +267,6 @@ public partial class MainWindow : Window
         {
             return;
         }
-
-        button.ApplyTemplate();
-        button.UpdateLayout();
 
         var popup = FindDescendant<Popup>(button, "DesktopTitlePopup");
         if (popup is null)
@@ -690,6 +687,7 @@ public partial class MainWindow : Window
         _mouseGestureSelectedAction = null;
 
         ShowFromBackground();
+        _refreshTimer.Stop();
         UpdateMouseGestureSelection(point);
     }
 
@@ -702,6 +700,11 @@ public partial class MainWindow : Window
 
         if (!IsScreenPointInsideWindow(point))
         {
+            if (_mouseGestureSelectedDesktopId is null && _mouseGestureSelectedAction is null)
+            {
+                return;
+            }
+
             _mouseGestureSelectedDesktopId = null;
             _mouseGestureSelectedAction = null;
             _viewModel.ClearGestureSelection();
@@ -710,10 +713,46 @@ public partial class MainWindow : Window
 
         var action = GetVirtualDesktopActionUnderScreenPoint(point);
         var desktop = GetDesktopUnderScreenPoint(point);
-        _mouseGestureSelectedAction = action?.Action;
-        _mouseGestureSelectedDesktopId = action is null ? desktop?.Id : null;
+        var selectedAction = action?.Action;
+        var selectedDesktopId = action is null ? desktop?.Id : null;
+        if (_mouseGestureSelectedAction == selectedAction &&
+            _mouseGestureSelectedDesktopId == selectedDesktopId)
+        {
+            return;
+        }
+
+        _mouseGestureSelectedAction = selectedAction;
+        _mouseGestureSelectedDesktopId = selectedDesktopId;
         _viewModel.SetGestureSelectedDesktop(_mouseGestureSelectedDesktopId);
         _viewModel.SetGestureSelectedVirtualDesktopAction(_mouseGestureSelectedAction);
+    }
+
+    private void QueueMouseGestureSelectionUpdate(NativePoint point)
+    {
+        lock (_mouseGestureQueueLock)
+        {
+            _pendingMouseGesturePoint = point;
+            if (_isMouseGestureUpdateQueued)
+            {
+                return;
+            }
+
+            _isMouseGestureUpdateQueued = true;
+        }
+
+        Dispatcher.BeginInvoke(
+            () =>
+            {
+                NativePoint latestPoint;
+                lock (_mouseGestureQueueLock)
+                {
+                    latestPoint = _pendingMouseGesturePoint;
+                    _isMouseGestureUpdateQueued = false;
+                }
+
+                UpdateMouseGestureSelection(latestPoint);
+            },
+            DispatcherPriority.Render);
     }
 
     private void CompleteMouseActivationGesture(NativePoint point)
@@ -733,7 +772,13 @@ public partial class MainWindow : Window
         _activeMouseActivationButton = null;
         _mouseGestureSelectedDesktopId = null;
         _mouseGestureSelectedAction = null;
+        lock (_mouseGestureQueueLock)
+        {
+            _isMouseGestureUpdateQueued = false;
+        }
+
         _viewModel.ClearGestureSelection();
+        StartRefreshTimer();
 
         if (selectedId is Guid id)
         {
@@ -1086,7 +1131,7 @@ public partial class MainWindow : Window
         {
             if (message == WmMouseMove)
             {
-                Dispatcher.BeginInvoke(() => UpdateMouseGestureSelection(data.Point), DispatcherPriority.Input);
+                QueueMouseGestureSelectionUpdate(data.Point);
             }
             else if (TryGetMouseButton(message, data.MouseData, out var button, out _, out var isUp) &&
                 isUp &&
