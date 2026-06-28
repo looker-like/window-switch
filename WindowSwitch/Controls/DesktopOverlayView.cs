@@ -157,9 +157,21 @@ public sealed class DesktopOverlayView : FrameworkElement
         InvalidateVisual();
     }
 
+    protected override void OnMouseLeftButtonDown(MouseButtonEventArgs e)
+    {
+        base.OnMouseLeftButtonDown(e);
+        CaptureMouse();
+        e.Handled = true;
+    }
+
     protected override void OnMouseLeftButtonUp(MouseButtonEventArgs e)
     {
         base.OnMouseLeftButtonUp(e);
+        if (IsMouseCaptured)
+        {
+            ReleaseMouseCapture();
+        }
+
         var point = e.GetPosition(this);
         if (HitTestDesktop(point) is { } desktop)
         {
