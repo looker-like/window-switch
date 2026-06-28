@@ -217,22 +217,17 @@ public partial class MainWindow : Window
 
     private void DesktopButton_Loaded(object sender, RoutedEventArgs e)
     {
-        UpdateDesktopButtonToolTip(sender as System.Windows.Controls.Button);
+        UpdateDesktopButtonLayout(sender as System.Windows.Controls.Button);
     }
 
     private void DesktopButton_SizeChanged(object sender, SizeChangedEventArgs e)
     {
-        UpdateDesktopButtonToolTip(sender as System.Windows.Controls.Button);
+        UpdateDesktopButtonLayout(sender as System.Windows.Controls.Button);
     }
 
-    private void DesktopButton_MouseEnter(object sender, System.Windows.Input.MouseEventArgs e)
+    private static void UpdateDesktopButtonLayout(System.Windows.Controls.Button? button)
     {
-        UpdateDesktopButtonToolTip(sender as System.Windows.Controls.Button);
-    }
-
-    private static void UpdateDesktopButtonToolTip(System.Windows.Controls.Button? button)
-    {
-        if (button?.DataContext is not DesktopButtonViewModel viewModel)
+        if (button is null)
         {
             return;
         }
@@ -245,7 +240,6 @@ public partial class MainWindow : Window
         var spacer = FindDescendant<Border>(button, "DesktopIndexSpacer");
         if (title is null || index is null)
         {
-            ToolTipService.SetIsEnabled(button, false);
             return;
         }
 
@@ -255,11 +249,6 @@ public partial class MainWindow : Window
         {
             spacer.Visibility = shouldShowIndex ? Visibility.Visible : Visibility.Collapsed;
         }
-
-        button.UpdateLayout();
-        var isTitleTrimmed = IsTextTrimmed(title);
-
-        ToolTipService.SetIsEnabled(button, isTitleTrimmed);
     }
 
     private static bool ShouldShowDesktopIndex(TextBlock title, TextBlock index, FrameworkElement? spacer)
@@ -275,16 +264,6 @@ public partial class MainWindow : Window
         var titleWidthWithIndex = Math.Max(0, container.ActualWidth - indexWidth - spacerWidth);
 
         return titleWidth <= titleWidthWithIndex + 0.5;
-    }
-
-    private static bool IsTextTrimmed(TextBlock textBlock)
-    {
-        if (textBlock.ActualWidth <= 0)
-        {
-            return false;
-        }
-
-        return MeasureTextWidth(textBlock) > textBlock.ActualWidth + 0.5;
     }
 
     private static double MeasureTextWidth(TextBlock textBlock)
