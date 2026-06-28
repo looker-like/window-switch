@@ -1,6 +1,5 @@
 using System.Windows;
 using System.ComponentModel;
-using System.Globalization;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -9,6 +8,7 @@ using System.Windows.Interop;
 using System.Windows.Threading;
 using System.Runtime.InteropServices;
 using System.IO;
+using WindowSwitch.Controls;
 using WindowSwitch.Services;
 using WindowSwitch.ViewModels;
 using WindowsDesktop;
@@ -88,6 +88,7 @@ public partial class MainWindow : Window
     private bool _isExitRequested;
     private bool _hasAppliedInitialVisibility;
     private bool _hasPinnedWindowToAllDesktops;
+    private SettingsWindow? _settingsWindow;
     private bool _isMouseActivationGestureActive;
     private bool _wasVisibleBeforeMouseGesture;
     private Guid? _mouseGestureSelectedDesktopId;
@@ -215,145 +216,35 @@ public partial class MainWindow : Window
 
     private void SettingsButton_Click(object sender, RoutedEventArgs e)
     {
-        SettingsPanel.Visibility = SettingsButton.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
+        ShowSettingsWindow();
     }
 
-    private void DesktopButton_Loaded(object sender, RoutedEventArgs e)
+    private void DesktopOverlay_DesktopInvoked(object sender, OverlayDesktopInvokedEventArgs e)
     {
-        UpdateDesktopButtonLayout(sender as System.Windows.Controls.Button);
+        _viewModel.SwitchDesktopCommand.Execute(e.DesktopId);
     }
 
-    private void DesktopButton_SizeChanged(object sender, SizeChangedEventArgs e)
+    private void DesktopOverlay_ActionInvoked(object sender, OverlayActionInvokedEventArgs e)
     {
-        UpdateDesktopButtonLayout(sender as System.Windows.Controls.Button);
+        _viewModel.ExecuteVirtualDesktopActionCommand.Execute(e.Action);
     }
 
-    private void DesktopButton_MouseEnter(object sender, System.Windows.Input.MouseEventArgs e)
+    private void ShowSettingsWindow()
     {
-        UpdateDesktopButtonPopup(sender as System.Windows.Controls.Button, isOpenRequested: true);
-    }
-
-    private void DesktopButton_MouseLeave(object sender, System.Windows.Input.MouseEventArgs e)
-    {
-        UpdateDesktopButtonPopup(sender as System.Windows.Controls.Button, isOpenRequested: false);
-    }
-
-    private static void UpdateDesktopButtonLayout(System.Windows.Controls.Button? button)
-    {
-        if (button is null)
+        if (_settingsWindow is not null)
         {
+            _settingsWindow.Activate();
             return;
         }
 
-        var title = FindDescendant<TextBlock>(button, "DesktopTitleText");
-        var index = FindDescendant<TextBlock>(button, "DesktopIndexText");
-        var spacer = FindDescendant<Border>(button, "DesktopIndexSpacer");
-        if (title is null || index is null)
+        var settingsWindow = new SettingsWindow(_viewModel)
         {
-            return;
-        }
-
-        var shouldShowIndex = ShouldShowDesktopIndex(title, index, spacer);
-        index.Visibility = shouldShowIndex ? Visibility.Visible : Visibility.Collapsed;
-        if (spacer is not null)
-        {
-            spacer.Visibility = shouldShowIndex ? Visibility.Visible : Visibility.Collapsed;
-        }
-    }
-
-    private static void UpdateDesktopButtonPopup(System.Windows.Controls.Button? button, bool isOpenRequested)
-    {
-        if (button is null)
-        {
-            return;
-        }
-
-        var popup = FindDescendant<Popup>(button, "DesktopTitlePopup");
-        if (popup is null)
-        {
-            return;
-        }
-
-        if (!isOpenRequested)
-        {
-            popup.IsOpen = false;
-            return;
-        }
-
-        var title = FindDescendant<TextBlock>(button, "DesktopTitleText");
-        popup.IsOpen = title is not null && IsTextTrimmed(title);
-    }
-
-    private static bool ShouldShowDesktopIndex(TextBlock title, TextBlock index, FrameworkElement? spacer)
-    {
-        if (title.Parent is not FrameworkElement container || container.ActualWidth <= 0)
-        {
-            return true;
-        }
-
-        var titleWidth = MeasureTextWidth(title);
-        var indexWidth = MeasureTextWidth(index);
-        var spacerWidth = spacer?.Width is > 0 ? spacer.Width : spacer?.ActualWidth ?? 0;
-        var titleWidthWithIndex = Math.Max(0, container.ActualWidth - indexWidth - spacerWidth);
-
-        return titleWidth <= titleWidthWithIndex + 0.5;
-    }
-
-    private static bool IsTextTrimmed(TextBlock textBlock)
-    {
-        if (textBlock.ActualWidth <= 0)
-        {
-            return false;
-        }
-
-        return MeasureTextWidth(textBlock) > textBlock.ActualWidth + 0.5;
-    }
-
-    private static double MeasureTextWidth(TextBlock textBlock)
-    {
-        var dpi = VisualTreeHelper.GetDpi(textBlock);
-        var formattedText = new FormattedText(
-            textBlock.Text ?? string.Empty,
-            CultureInfo.CurrentUICulture,
-            textBlock.FlowDirection,
-            new Typeface(textBlock.FontFamily, textBlock.FontStyle, textBlock.FontWeight, textBlock.FontStretch),
-            textBlock.FontSize,
-            textBlock.Foreground,
-            dpi.PixelsPerDip);
-
-        return formattedText.WidthIncludingTrailingWhitespace;
-    }
-
-    private static T? FindDescendant<T>(DependencyObject root, string name)
-        where T : FrameworkElement
-    {
-        for (var i = 0; i < VisualTreeHelper.GetChildrenCount(root); i++)
-        {
-            var child = VisualTreeHelper.GetChild(root, i);
-            if (child is T element && element.Name == name)
-            {
-                return element;
-            }
-
-            var nested = FindDescendant<T>(child, name);
-            if (nested is not null)
-            {
-                return nested;
-            }
-        }
-
-        return null;
-    }
-
-    private void RecordShowHotkeyButton_Click(object sender, RoutedEventArgs e)
-    {
-        if (_viewModel.IsCapturingShowHotkey)
-        {
-            EndShowHotkeyCapture("已取消监听。");
-            return;
-        }
-
-        BeginShowHotkeyCapture();
+            Owner = this,
+        };
+        settingsWindow.RecordShowHotkeyRequested += (_, _) => ToggleShowHotkeyCapture();
+        settingsWindow.Closed += (_, _) => _settingsWindow = null;
+        _settingsWindow = settingsWindow;
+        settingsWindow.Show();
     }
 
     private void ApplyWindowPosition()
@@ -385,7 +276,7 @@ public partial class MainWindow : Window
 
     public void HideToBackground()
     {
-        CloseSettingsPanel();
+        CloseSettingsWindow();
         _refreshTimer.Stop();
         Hide();
         SaveCurrentSettings();
@@ -589,10 +480,27 @@ public partial class MainWindow : Window
             SwpNoMove | SwpNoSize | SwpNoActivate);
     }
 
-    private void CloseSettingsPanel()
+    private void CloseSettingsWindow()
     {
-        SettingsButton.IsChecked = false;
-        SettingsPanel.Visibility = Visibility.Collapsed;
+        if (_settingsWindow is null)
+        {
+            return;
+        }
+
+        var settingsWindow = _settingsWindow;
+        _settingsWindow = null;
+        settingsWindow.Close();
+    }
+
+    private void ToggleShowHotkeyCapture()
+    {
+        if (_viewModel.IsCapturingShowHotkey)
+        {
+            EndShowHotkeyCapture("已取消监听。");
+            return;
+        }
+
+        BeginShowHotkeyCapture();
     }
 
     private void BeginShowHotkeyCapture()
@@ -813,19 +721,7 @@ public partial class MainWindow : Window
             return null;
         }
 
-        var hitPoint = DesktopItems.PointFromScreen(new System.Windows.Point(point.X, point.Y));
-        var hit = DesktopItems.InputHitTest(hitPoint) as DependencyObject;
-        while (hit is not null)
-        {
-            if (hit is FrameworkElement { DataContext: DesktopButtonViewModel desktop })
-            {
-                return desktop;
-            }
-
-            hit = VisualTreeHelper.GetParent(hit);
-        }
-
-        return null;
+        return DesktopOverlay.GetDesktopAtScreenPoint(new System.Windows.Point(point.X, point.Y));
     }
 
     private VirtualDesktopActionButtonViewModel? GetVirtualDesktopActionUnderScreenPoint(NativePoint point)
@@ -835,19 +731,7 @@ public partial class MainWindow : Window
             return null;
         }
 
-        var hitPoint = VirtualDesktopActionItems.PointFromScreen(new System.Windows.Point(point.X, point.Y));
-        var hit = VirtualDesktopActionItems.InputHitTest(hitPoint) as DependencyObject;
-        while (hit is not null)
-        {
-            if (hit is FrameworkElement { DataContext: VirtualDesktopActionButtonViewModel action })
-            {
-                return action;
-            }
-
-            hit = VisualTreeHelper.GetParent(hit);
-        }
-
-        return null;
+        return DesktopOverlay.GetActionAtScreenPoint(new System.Windows.Point(point.X, point.Y));
     }
 
     private void ApplyHotkeyRegistration()
@@ -1324,6 +1208,7 @@ public partial class MainWindow : Window
 
     private void TearDown()
     {
+        CloseSettingsWindow();
         _refreshTimer.Stop();
         _settingsSaveTimer.Stop();
         _desktopHotkeySequenceTimer.Stop();
