@@ -373,32 +373,61 @@
                                 CommandParameter="{Binding Id}"
                                 Loaded="DesktopButton_Loaded"
                                 SizeChanged="DesktopButton_SizeChanged"
-                                ToolTip="{Binding DisplayName}">
+                                MouseEnter="DesktopButton_MouseEnter"
+                                MouseLeave="DesktopButton_MouseLeave">
                             <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" MinWidth="0" />
-                                    <ColumnDefinition Width="Auto" />
-                                    <ColumnDefinition Width="Auto" MinWidth="0" />
-                                </Grid.ColumnDefinitions>
-                                <TextBlock x:Name="DesktopTitleText"
-                                           Grid.Column="0"
-                                           Text="{Binding DisplayName}"
-                                           FontSize="13"
-                                           MinWidth="0"
-                                           TextTrimming="CharacterEllipsis"
-                                           VerticalAlignment="Center" />
-                                <Border x:Name="DesktopIndexSpacer"
-                                        Grid.Column="1"
-                                        Width="8" />
-                                <TextBlock x:Name="DesktopIndexText"
-                                           Grid.Column="2"
-                                           Text="{Binding Index}"
-                                           FontSize="15"
-                                           FontWeight="SemiBold"
-                                           Foreground="#64748B"
-                                           HorizontalAlignment="Right"
-                                           MinWidth="0"
-                                           VerticalAlignment="Center" />
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" MinWidth="0" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" MinWidth="0" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock x:Name="DesktopTitleText"
+                                               Grid.Column="0"
+                                               Text="{Binding DisplayName}"
+                                               FontSize="13"
+                                               MinWidth="0"
+                                               TextTrimming="CharacterEllipsis"
+                                               VerticalAlignment="Center" />
+                                    <Border x:Name="DesktopIndexSpacer"
+                                            Grid.Column="1"
+                                            Width="8" />
+                                    <TextBlock x:Name="DesktopIndexText"
+                                               Grid.Column="2"
+                                               Text="{Binding Index}"
+                                               FontSize="15"
+                                               FontWeight="SemiBold"
+                                               Foreground="#64748B"
+                                               HorizontalAlignment="Right"
+                                               MinWidth="0"
+                                               VerticalAlignment="Center" />
+                                </Grid>
+                                <primitives:Popup x:Name="DesktopTitlePopup"
+                                                  AllowsTransparency="True"
+                                                  IsHitTestVisible="False"
+                                                  Placement="MousePoint"
+                                                  PopupAnimation="Fade"
+                                                  StaysOpen="False">
+                                    <Border MaxWidth="360"
+                                            Padding="8,5"
+                                            Background="#F8FAFC"
+                                            BorderBrush="#CBD5E1"
+                                            BorderThickness="1"
+                                            CornerRadius="5"
+                                            SnapsToDevicePixels="True">
+                                        <Border.Effect>
+                                            <DropShadowEffect BlurRadius="10"
+                                                              ShadowDepth="2"
+                                                              Direction="270"
+                                                              Opacity="0.20"
+                                                              Color="#0F172A" />
+                                        </Border.Effect>
+                                        <TextBlock Text="{Binding DisplayName}"
+                                                   FontSize="12"
+                                                   Foreground="#0F172A"
+                                                   TextWrapping="Wrap" />
+                                    </Border>
+                                </primitives:Popup>
                             </Grid>
                         </Button>
                     </DataTemplate>

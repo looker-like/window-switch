@@ -225,6 +225,16 @@ public partial class MainWindow : Window
         UpdateDesktopButtonLayout(sender as System.Windows.Controls.Button);
     }
 
+    private void DesktopButton_MouseEnter(object sender, System.Windows.Input.MouseEventArgs e)
+    {
+        UpdateDesktopButtonPopup(sender as System.Windows.Controls.Button, isOpenRequested: true);
+    }
+
+    private void DesktopButton_MouseLeave(object sender, System.Windows.Input.MouseEventArgs e)
+    {
+        UpdateDesktopButtonPopup(sender as System.Windows.Controls.Button, isOpenRequested: false);
+    }
+
     private static void UpdateDesktopButtonLayout(System.Windows.Controls.Button? button)
     {
         if (button is null)
@@ -251,6 +261,32 @@ public partial class MainWindow : Window
         }
     }
 
+    private static void UpdateDesktopButtonPopup(System.Windows.Controls.Button? button, bool isOpenRequested)
+    {
+        if (button is null)
+        {
+            return;
+        }
+
+        button.ApplyTemplate();
+        button.UpdateLayout();
+
+        var popup = FindDescendant<Popup>(button, "DesktopTitlePopup");
+        if (popup is null)
+        {
+            return;
+        }
+
+        if (!isOpenRequested)
+        {
+            popup.IsOpen = false;
+            return;
+        }
+
+        var title = FindDescendant<TextBlock>(button, "DesktopTitleText");
+        popup.IsOpen = title is not null && IsTextTrimmed(title);
+    }
+
     private static bool ShouldShowDesktopIndex(TextBlock title, TextBlock index, FrameworkElement? spacer)
     {
         if (title.Parent is not FrameworkElement container || container.ActualWidth <= 0)
@@ -264,6 +300,16 @@ public partial class MainWindow : Window
         var titleWidthWithIndex = Math.Max(0, container.ActualWidth - indexWidth - spacerWidth);
 
         return titleWidth <= titleWidthWithIndex + 0.5;
+    }
+
+    private static bool IsTextTrimmed(TextBlock textBlock)
+    {
+        if (textBlock.ActualWidth <= 0)
+        {
+            return false;
+        }
+
+        return MeasureTextWidth(textBlock) > textBlock.ActualWidth + 0.5;
     }
 
     private static double MeasureTextWidth(TextBlock textBlock)
