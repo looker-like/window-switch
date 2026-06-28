@@ -373,32 +373,31 @@
                                 CommandParameter="{Binding Id}"
                                 Loaded="DesktopButton_Loaded"
                                 SizeChanged="DesktopButton_SizeChanged"
-                                ToolTip="{Binding DisplayName}">
+                                MouseEnter="DesktopButton_MouseEnter">
                             <Grid>
                                 <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto" MinWidth="0" />
-                                    <ColumnDefinition Width="2" />
                                     <ColumnDefinition Width="*" MinWidth="0" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" MinWidth="0" />
                                 </Grid.ColumnDefinitions>
                                 <TextBlock x:Name="DesktopTitleText"
                                            Grid.Column="0"
                                            Text="{Binding DisplayName}"
                                            FontSize="13"
+                                           MinWidth="0"
                                            TextTrimming="CharacterEllipsis"
                                            VerticalAlignment="Center" />
-                                <TextBlock Grid.Column="1"
-                                           Text=""
-                                           FontSize="1"
-                                           Width="0"
-                                           VerticalAlignment="Center" />
+                                <Border x:Name="DesktopIndexSpacer"
+                                        Grid.Column="1"
+                                        Width="8" />
                                 <TextBlock x:Name="DesktopIndexText"
                                            Grid.Column="2"
                                            Text="{Binding Index}"
                                            FontSize="15"
                                            FontWeight="SemiBold"
                                            Foreground="#64748B"
+                                           HorizontalAlignment="Right"
                                            MinWidth="0"
-                                           TextTrimming="CharacterEllipsis"
                                            VerticalAlignment="Center" />
                             </Grid>
                         </Button>

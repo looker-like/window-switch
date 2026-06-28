@@ -1,5 +1,6 @@
 using System.Windows;
 using System.ComponentModel;
+using System.Globalization;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -224,6 +225,11 @@ public partial class MainWindow : Window
         UpdateDesktopButtonToolTip(sender as System.Windows.Controls.Button);
     }
 
+    private void DesktopButton_MouseEnter(object sender, System.Windows.Input.MouseEventArgs e)
+    {
+        UpdateDesktopButtonToolTip(sender as System.Windows.Controls.Button);
+    }
+
     private static void UpdateDesktopButtonToolTip(System.Windows.Controls.Button? button)
     {
         if (button?.DataContext is not DesktopButtonViewModel viewModel)
@@ -236,10 +242,64 @@ public partial class MainWindow : Window
 
         var title = FindDescendant<TextBlock>(button, "DesktopTitleText");
         var index = FindDescendant<TextBlock>(button, "DesktopIndexText");
-        var isTitleTrimmed = title is not null && title.ActualWidth > 0 && title.DesiredSize.Width > title.ActualWidth + 0.5;
-        var isIndexTrimmed = index is not null && index.ActualWidth > 0 && index.DesiredSize.Width > index.ActualWidth + 0.5;
+        var spacer = FindDescendant<Border>(button, "DesktopIndexSpacer");
+        if (title is null || index is null)
+        {
+            button.ToolTip = null;
+            return;
+        }
 
-        button.ToolTip = isTitleTrimmed || isIndexTrimmed ? viewModel.DisplayName : null;
+        var shouldShowIndex = ShouldShowDesktopIndex(title, index, spacer);
+        index.Visibility = shouldShowIndex ? Visibility.Visible : Visibility.Collapsed;
+        if (spacer is not null)
+        {
+            spacer.Visibility = shouldShowIndex ? Visibility.Visible : Visibility.Collapsed;
+        }
+
+        button.UpdateLayout();
+        var isTitleTrimmed = IsTextTrimmed(title);
+
+        button.ToolTip = isTitleTrimmed ? viewModel.DisplayName : null;
+    }
+
+    private static bool ShouldShowDesktopIndex(TextBlock title, TextBlock index, FrameworkElement? spacer)
+    {
+        if (title.Parent is not FrameworkElement container || container.ActualWidth <= 0)
+        {
+            return true;
+        }
+
+        var titleWidth = MeasureTextWidth(title);
+        var indexWidth = MeasureTextWidth(index);
+        var spacerWidth = spacer?.Width is > 0 ? spacer.Width : spacer?.ActualWidth ?? 0;
+        var titleWidthWithIndex = Math.Max(0, container.ActualWidth - indexWidth - spacerWidth);
+
+        return titleWidth <= titleWidthWithIndex + 0.5;
+    }
+
+    private static bool IsTextTrimmed(TextBlock textBlock)
+    {
+        if (textBlock.ActualWidth <= 0)
+        {
+            return false;
+        }
+
+        return MeasureTextWidth(textBlock) > textBlock.ActualWidth + 0.5;
+    }
+
+    private static double MeasureTextWidth(TextBlock textBlock)
+    {
+        var dpi = VisualTreeHelper.GetDpi(textBlock);
+        var formattedText = new FormattedText(
+            textBlock.Text ?? string.Empty,
+            CultureInfo.CurrentUICulture,
+            textBlock.FlowDirection,
+            new Typeface(textBlock.FontFamily, textBlock.FontStyle, textBlock.FontWeight, textBlock.FontStretch),
+            textBlock.FontSize,
+            textBlock.Foreground,
+            dpi.PixelsPerDip);
+
+        return formattedText.WidthIncludingTrailingWhitespace;
     }
 
     private static T? FindDescendant<T>(DependencyObject root, string name)
