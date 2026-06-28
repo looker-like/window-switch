@@ -245,7 +245,7 @@ public partial class MainWindow : Window
         var spacer = FindDescendant<Border>(button, "DesktopIndexSpacer");
         if (title is null || index is null)
         {
-            button.ToolTip = null;
+            ToolTipService.SetIsEnabled(button, false);
             return;
         }
 
@@ -259,7 +259,7 @@ public partial class MainWindow : Window
         button.UpdateLayout();
         var isTitleTrimmed = IsTextTrimmed(title);
 
-        button.ToolTip = isTitleTrimmed ? viewModel.DisplayName : null;
+        ToolTipService.SetIsEnabled(button, isTitleTrimmed);
     }
 
     private static bool ShouldShowDesktopIndex(TextBlock title, TextBlock index, FrameworkElement? spacer)

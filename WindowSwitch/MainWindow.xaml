@@ -374,6 +374,11 @@
                                 Loaded="DesktopButton_Loaded"
                                 SizeChanged="DesktopButton_SizeChanged"
                                 MouseEnter="DesktopButton_MouseEnter">
+                            <Button.ToolTip>
+                                <ToolTip>
+                                    <TextBlock Text="{Binding DisplayName}" />
+                                </ToolTip>
+                            </Button.ToolTip>
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" MinWidth="0" />
