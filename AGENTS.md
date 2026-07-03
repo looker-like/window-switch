@@ -23,6 +23,8 @@
    - 快捷键功能
    - 测试或验证补充
 
+   任何形式的修改完成后都要及时做细颗粒度提交；不要把多个不相关意图混在同一个提交里。
+
 5. 提交前使用本仓库 hook。仓库已配置：
    - hook 文件：`.githooks/pre-commit`
    - 本机配置：`git config core.hooksPath .githooks`
