@@ -75,7 +75,8 @@
                               Color="#1F2937" />
         </Border.Effect>
         <DockPanel LastChildFill="True">
-            <Grid DockPanel.Dock="Top"
+            <Grid x:Name="HeaderBar"
+                  DockPanel.Dock="Top"
                   Margin="2,0,0,8">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
@@ -135,7 +136,8 @@
                 </StackPanel>
             </Grid>
 
-            <TextBlock DockPanel.Dock="Bottom"
+            <TextBlock x:Name="StatusBlock"
+                       DockPanel.Dock="Bottom"
                        Text="{Binding StatusMessage}"
                        Visibility="{Binding HasStatus, Converter={StaticResource BooleanToVisibilityConverter}}"
                        Margin="2,6,2,0"
@@ -148,6 +150,7 @@
                                          Desktops="{Binding Desktops}"
                                          Actions="{Binding VirtualDesktopActions}"
                                          ColumnsPerRow="{Binding ColumnsPerRow}"
+                                         EnableColoredDesktopLabels="{Binding EnableColoredDesktopLabels}"
                                          DesktopInvoked="DesktopOverlay_DesktopInvoked"
                                          ActionInvoked="DesktopOverlay_ActionInvoked" />
         </DockPanel>

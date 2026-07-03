@@ -20,6 +20,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     private bool _isFloatingTopmost = true;
     private bool _startHidden = true;
     private bool _autoHideAfterSwitch;
+    private bool _enableColoredDesktopLabels;
     private bool _isHotkeyEnabled = true;
     private bool _isDesktopHotkeysEnabled = true;
     private string _hotkeyStatusMessage = string.Empty;
@@ -105,6 +106,12 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     {
         get => _autoHideAfterSwitch;
         set => SetProperty(ref _autoHideAfterSwitch, value);
+    }
+
+    public bool EnableColoredDesktopLabels
+    {
+        get => _enableColoredDesktopLabels;
+        set => SetProperty(ref _enableColoredDesktopLabels, value);
     }
 
     public bool IsHotkeyEnabled
@@ -350,6 +357,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         _isFloatingTopmost = settings.IsFloatingTopmost;
         _startHidden = settings.StartHidden;
         _autoHideAfterSwitch = settings.AutoHideAfterSwitch;
+        _enableColoredDesktopLabels = settings.EnableColoredDesktopLabels;
         _isHotkeyEnabled = settings.IsHotkeyEnabled;
         _isDesktopHotkeysEnabled = settings.IsDesktopHotkeysEnabled;
         _showHotkeyKind = HotkeyDefinitions.NormalizeShowHotkeyKind(settings.ShowHotkeyKind);

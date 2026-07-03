@@ -141,6 +141,7 @@ public partial class MainWindow : Window
 
         SourceInitialized += MainWindow_SourceInitialized;
         Loaded += MainWindow_Loaded;
+        LayoutUpdated += MainWindow_LayoutUpdated;
         Closing += MainWindow_Closing;
         LocationChanged += (_, _) => ScheduleSettingsSave();
         _viewModel.PropertyChanged += ViewModel_PropertyChanged;
@@ -178,6 +179,11 @@ public partial class MainWindow : Window
         }
 
         StartRefreshTimer();
+    }
+
+    private void MainWindow_LayoutUpdated(object? sender, EventArgs e)
+    {
+        ApplyContentMinHeight();
     }
 
     private void MainWindow_Closing(object? sender, System.ComponentModel.CancelEventArgs e)
@@ -302,6 +308,7 @@ public partial class MainWindow : Window
     {
         if (e.PropertyName is nameof(MainWindowViewModel.IsFloatingTopmost) or
             nameof(MainWindowViewModel.ColumnsPerRow) or
+            nameof(MainWindowViewModel.EnableColoredDesktopLabels) or
             nameof(MainWindowViewModel.WindowOpacity) or
             nameof(MainWindowViewModel.StartHidden) or
             nameof(MainWindowViewModel.AutoHideAfterSwitch) or
@@ -345,6 +352,64 @@ public partial class MainWindow : Window
         ApplyTopmostWithoutActivation();
     }
 
+    private void ApplyContentMinHeight()
+    {
+        var chromeVertical = RootChrome.Padding.Top + RootChrome.Padding.Bottom +
+            RootChrome.BorderThickness.Top + RootChrome.BorderThickness.Bottom;
+        var headerHeight = HeaderBar.ActualHeight + HeaderBar.Margin.Top + HeaderBar.Margin.Bottom;
+        var statusHeight = StatusBlock.IsVisible
+            ? StatusBlock.ActualHeight + StatusBlock.Margin.Top + StatusBlock.Margin.Bottom
+            : 0;
+        var overlayHeight = DesktopOverlay.DesiredSize.Height;
+        var contentMinHeight = Math.Ceiling(chromeVertical + headerHeight + statusHeight + overlayHeight);
+        var usableMaxHeight = GetUsableMaxHeight();
+        var boundedContentMinHeight = Math.Min(contentMinHeight, usableMaxHeight);
+
+        if (!MaxHeight.Equals(usableMaxHeight))
+        {
+            MaxHeight = usableMaxHeight;
+        }
+
+        if (boundedContentMinHeight > 0 && !MinHeight.Equals(boundedContentMinHeight))
+        {
+            MinHeight = boundedContentMinHeight;
+        }
+
+        GrowToFitContent(boundedContentMinHeight);
+    }
+
+    private double GetUsableMaxHeight()
+    {
+        return Math.Max(160, SystemParameters.WorkArea.Height);
+    }
+
+    private void GrowToFitContent(double contentMinHeight)
+    {
+        if (contentMinHeight <= 0)
+        {
+            return;
+        }
+
+        var currentHeight = ActualHeight > 0 ? ActualHeight : Height;
+        if (currentHeight >= contentMinHeight)
+        {
+            return;
+        }
+
+        var workArea = SystemParameters.WorkArea;
+        var targetHeight = Math.Min(contentMinHeight, MaxHeight);
+        if (targetHeight <= currentHeight)
+        {
+            return;
+        }
+
+        Height = targetHeight;
+        if (Top + targetHeight > workArea.Bottom)
+        {
+            Top = Math.Max(workArea.Top, workArea.Bottom - targetHeight);
+        }
+    }
+
     private void StartRefreshTimer()
     {
         if (!_refreshTimer.IsEnabled)
@@ -374,6 +439,7 @@ public partial class MainWindow : Window
             _viewModel.WindowOpacity,
             _viewModel.StartHidden,
             _viewModel.AutoHideAfterSwitch,
+            _viewModel.EnableColoredDesktopLabels,
             _viewModel.IsHotkeyEnabled,
             _viewModel.IsDesktopHotkeysEnabled,
             _viewModel.ShowHotkeyModifiers,
@@ -1212,6 +1278,7 @@ public partial class MainWindow : Window
         _refreshTimer.Stop();
         _settingsSaveTimer.Stop();
         _desktopHotkeySequenceTimer.Stop();
+        LayoutUpdated -= MainWindow_LayoutUpdated;
         _viewModel.PropertyChanged -= ViewModel_PropertyChanged;
         _viewModel.DesktopSwitchCompleted -= ViewModel_DesktopSwitchCompleted;
         _hwndSource?.RemoveHook(WndProc);

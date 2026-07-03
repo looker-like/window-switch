@@ -109,6 +109,7 @@ public sealed class MainWindowViewModelTests
             windowOpacity: 0.75,
             startHidden: true,
             autoHideAfterSwitch: true,
+            enableColoredDesktopLabels: true,
             isHotkeyEnabled: false,
             isDesktopHotkeysEnabled: false,
             showHotkeyModifiers: (int)(HotkeyModifiers.Control | HotkeyModifiers.Shift),
@@ -122,6 +123,7 @@ public sealed class MainWindowViewModelTests
         Assert.False(viewModel.IsFloatingTopmost);
         Assert.True(viewModel.StartHidden);
         Assert.True(viewModel.AutoHideAfterSwitch);
+        Assert.True(viewModel.EnableColoredDesktopLabels);
         Assert.False(viewModel.IsHotkeyEnabled);
         Assert.False(viewModel.IsDesktopHotkeysEnabled);
         Assert.Equal((int)(HotkeyModifiers.Control | HotkeyModifiers.Shift), viewModel.ShowHotkeyModifiers);
@@ -156,6 +158,7 @@ public sealed class MainWindowViewModelTests
         Assert.Equal(4, viewModel.ColumnsPerRow);
         Assert.Equal(0.35, viewModel.WindowOpacity);
         Assert.Equal(35, viewModel.WindowOpacityPercent);
+        Assert.False(viewModel.EnableColoredDesktopLabels);
         Assert.Equal(HotkeyDefinitions.DefaultHotkeyModifiers, viewModel.ShowHotkeyModifiers);
         Assert.Equal(0x31, viewModel.ShowHotkeyVirtualKey);
         Assert.Equal(HotkeyDefinitions.DefaultHotkeyModifiers, viewModel.DesktopHotkeyModifiers);

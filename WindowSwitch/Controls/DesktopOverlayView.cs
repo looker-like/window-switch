@@ -39,6 +39,12 @@ public sealed class DesktopOverlayView : FrameworkElement
         typeof(DesktopOverlayView),
         new FrameworkPropertyMetadata(2, FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsRender));
 
+    public static readonly DependencyProperty EnableColoredDesktopLabelsProperty = DependencyProperty.Register(
+        nameof(EnableColoredDesktopLabels),
+        typeof(bool),
+        typeof(DesktopOverlayView),
+        new FrameworkPropertyMetadata(false, FrameworkPropertyMetadataOptions.AffectsRender));
+
     private const double DesktopHeight = 46;
     private const double DesktopGap = 8;
     private const double ActionHeight = 32;
@@ -65,6 +71,17 @@ public sealed class DesktopOverlayView : FrameworkElement
     private static readonly WpfPen CurrentPen = new(CurrentBorderBrush, 1);
     private static readonly WpfPen GesturePen = new(GestureBorderBrush, 1);
     private static readonly WpfPen TooltipPen = new(Solid("#334155"), 1);
+    private static readonly LabelPalette[] ColorPalettes =
+    [
+        new(Solid("#DBEAFE"), Solid("#BFDBFE"), Solid("#C7D2FE"), Solid("#2563EB"), Solid("#1D4ED8"), Solid("#1E3A8A")),
+        new(Solid("#D1FAE5"), Solid("#A7F3D0"), Solid("#BBF7D0"), Solid("#059669"), Solid("#047857"), Solid("#064E3B")),
+        new(Solid("#FEF3C7"), Solid("#FDE68A"), Solid("#FED7AA"), Solid("#D97706"), Solid("#B45309"), Solid("#78350F")),
+        new(Solid("#FFE4E6"), Solid("#FDA4AF"), Solid("#FBCFE8"), Solid("#E11D48"), Solid("#BE123C"), Solid("#881337")),
+        new(Solid("#EDE9FE"), Solid("#DDD6FE"), Solid("#F5D0FE"), Solid("#7C3AED"), Solid("#6D28D9"), Solid("#4C1D95")),
+        new(Solid("#CCFBF1"), Solid("#99F6E4"), Solid("#BAE6FD"), Solid("#0D9488"), Solid("#0F766E"), Solid("#134E4A")),
+        new(Solid("#E0F2FE"), Solid("#BAE6FD"), Solid("#CFFAFE"), Solid("#0284C7"), Solid("#0369A1"), Solid("#0C4A6E")),
+        new(Solid("#FCE7F3"), Solid("#FBCFE8"), Solid("#FECACA"), Solid("#DB2777"), Solid("#BE185D"), Solid("#831843")),
+    ];
 
     private readonly List<DesktopButtonViewModel> _desktops = [];
     private readonly List<VirtualDesktopActionButtonViewModel> _actions = [];
@@ -114,6 +131,12 @@ public sealed class DesktopOverlayView : FrameworkElement
     {
         get => (int)GetValue(ColumnsPerRowProperty);
         set => SetValue(ColumnsPerRowProperty, value);
+    }
+
+    public bool EnableColoredDesktopLabels
+    {
+        get => (bool)GetValue(EnableColoredDesktopLabelsProperty);
+        set => SetValue(EnableColoredDesktopLabelsProperty, value);
     }
 
     public DesktopButtonViewModel? GetDesktopAtScreenPoint(System.Windows.Point screenPoint)
@@ -353,10 +376,17 @@ public sealed class DesktopOverlayView : FrameworkElement
         var isGesture = desktop.IsGestureSelected;
         var isCurrent = desktop.IsCurrent;
         var isHover = desktop == _hoveredDesktop;
-        var fill = isGesture ? GestureBrush : isCurrent ? CurrentBrush : isHover ? HoverBrush : PanelBrush;
-        var pen = isGesture ? GesturePen : isCurrent ? CurrentPen : PanelPen;
-        var textBrush = isGesture || isCurrent ? WhiteBrush : TextBrush;
-        var mutedBrush = isGesture || isCurrent ? WhiteBrush : MutedTextBrush;
+        var palette = EnableColoredDesktopLabels ? GetPalette(desktop.Index) : null;
+        var fill = isGesture
+            ? GestureBrush
+            : isCurrent
+                ? palette?.StrongBrush ?? CurrentBrush
+                : isHover
+                    ? palette?.HoverBrush ?? HoverBrush
+                    : palette?.FillBrush ?? PanelBrush;
+        var pen = isGesture ? GesturePen : isCurrent ? palette?.StrongPen ?? CurrentPen : palette?.Pen ?? PanelPen;
+        var textBrush = isGesture || isCurrent ? WhiteBrush : palette?.TextBrush ?? TextBrush;
+        var mutedBrush = isGesture || isCurrent ? WhiteBrush : palette?.StrongBrush ?? MutedTextBrush;
 
         dc.DrawRoundedRectangle(fill, pen, rect, CornerRadius, CornerRadius);
 
@@ -380,14 +410,19 @@ public sealed class DesktopOverlayView : FrameworkElement
 
         var title = CreateText(desktop.DisplayName, 13, FontWeights.Normal, textBrush, dpi);
         title.MaxTextWidth = titleWidth;
+        title.MaxTextHeight = content.Height;
         title.Trimming = TextTrimming.CharacterEllipsis;
-        dc.DrawText(title, new System.Windows.Point(content.X, content.Y + 5));
+        title.TextAlignment = showIndex ? TextAlignment.Left : TextAlignment.Center;
+        var titleY = rect.Y + (rect.Height - title.Height) / 2;
+        dc.DrawText(title, new System.Windows.Point(content.X, titleY));
 
         if (showIndex)
         {
             dc.DrawText(
                 indexText,
-                new System.Windows.Point(content.Right - indexText.WidthIncludingTrailingWhitespace, content.Y + 3));
+                new System.Windows.Point(
+                    content.Right - indexText.WidthIncludingTrailingWhitespace,
+                    rect.Y + (rect.Height - indexText.Height) / 2));
         }
     }
 
@@ -531,6 +566,12 @@ public sealed class DesktopOverlayView : FrameworkElement
         return CreateText(text, size, weight, TextBrush, dpi).WidthIncludingTrailingWhitespace;
     }
 
+    private static LabelPalette GetPalette(int desktopIndex)
+    {
+        var index = Math.Abs(desktopIndex - 1) % ColorPalettes.Length;
+        return ColorPalettes[index];
+    }
+
     private static SolidColorBrush Solid(string hex)
     {
         var brush = new SolidColorBrush((WpfColor)WpfColorConverter.ConvertFromString(hex));
@@ -541,4 +582,17 @@ public sealed class DesktopOverlayView : FrameworkElement
     private readonly record struct DesktopHitTarget(Rect Rect, DesktopButtonViewModel? Desktop);
 
     private readonly record struct ActionHitTarget(Rect Rect, VirtualDesktopActionButtonViewModel? Action);
+
+    private sealed record LabelPalette(
+        WpfBrush FillBrush,
+        WpfBrush BorderBrush,
+        WpfBrush HoverBrush,
+        WpfBrush StrongBrush,
+        WpfBrush StrongBorderBrush,
+        WpfBrush TextBrush)
+    {
+        public WpfPen Pen { get; } = new(BorderBrush, 1);
+
+        public WpfPen StrongPen { get; } = new(StrongBorderBrush, 1);
+    }
 }

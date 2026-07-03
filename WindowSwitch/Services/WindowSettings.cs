@@ -17,6 +17,7 @@ public sealed class WindowSettings
         double windowOpacity = DefaultWindowOpacity,
         bool startHidden = true,
         bool autoHideAfterSwitch = false,
+        bool enableColoredDesktopLabels = false,
         bool isHotkeyEnabled = true,
         bool isDesktopHotkeysEnabled = true,
         int showHotkeyModifiers = HotkeyDefinitions.DefaultHotkeyModifiers,
@@ -32,6 +33,7 @@ public sealed class WindowSettings
         WindowOpacity = windowOpacity;
         StartHidden = startHidden;
         AutoHideAfterSwitch = autoHideAfterSwitch;
+        EnableColoredDesktopLabels = enableColoredDesktopLabels;
         IsHotkeyEnabled = isHotkeyEnabled;
         IsDesktopHotkeysEnabled = isDesktopHotkeysEnabled;
         ShowHotkeyModifiers = showHotkeyModifiers;
@@ -54,6 +56,8 @@ public sealed class WindowSettings
     public bool StartHidden { get; init; } = true;
 
     public bool AutoHideAfterSwitch { get; init; }
+
+    public bool EnableColoredDesktopLabels { get; init; }
 
     public bool IsHotkeyEnabled { get; init; } = true;
 

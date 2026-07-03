@@ -130,6 +130,19 @@
                                   ItemsSource="{Binding ColumnOptions}"
                                   SelectedItem="{Binding ColumnsPerRow, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                     </DockPanel>
+                    <CheckBox Content="启用彩色标签"
+                              IsChecked="{Binding EnableColoredDesktopLabels, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                              Margin="0,0,0,8"
+                              Foreground="#2F3A4A" />
+                    <StackPanel Orientation="Horizontal"
+                                Margin="0,0,0,12">
+                        <Border Width="22" Height="8" Margin="0,0,5,0" CornerRadius="4" Background="#DBEAFE" BorderBrush="#60A5FA" BorderThickness="1" />
+                        <Border Width="22" Height="8" Margin="0,0,5,0" CornerRadius="4" Background="#D1FAE5" BorderBrush="#34D399" BorderThickness="1" />
+                        <Border Width="22" Height="8" Margin="0,0,5,0" CornerRadius="4" Background="#FEF3C7" BorderBrush="#F59E0B" BorderThickness="1" />
+                        <Border Width="22" Height="8" Margin="0,0,5,0" CornerRadius="4" Background="#FFE4E6" BorderBrush="#FB7185" BorderThickness="1" />
+                        <Border Width="22" Height="8" Margin="0,0,5,0" CornerRadius="4" Background="#EDE9FE" BorderBrush="#8B5CF6" BorderThickness="1" />
+                        <Border Width="22" Height="8" Margin="0,0,5,0" CornerRadius="4" Background="#CCFBF1" BorderBrush="#14B8A6" BorderThickness="1" />
+                    </StackPanel>
                     <TextBlock Text="{Binding WindowOpacityPercent, StringFormat=透明度 {0}%}"
                                Style="{StaticResource SettingLabelStyle}"
                                Margin="0,0,0,6" />
