@@ -1,0 +1,10 @@
+#!/bin/sh
+set -eu
+
+if [ "${SKIP_WINDOWSWITCH_HOOK:-}" = "1" ]; then
+  echo "WindowSwitch post-commit hook skipped."
+  exit 0
+fi
+
+echo "Running WindowSwitch post-commit function length check..."
+python scripts/check_function_length.py --max-lines 300
