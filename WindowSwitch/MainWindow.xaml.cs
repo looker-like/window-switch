@@ -940,8 +940,8 @@ public partial class MainWindow : Window
     {
         return hitTest.ToInt32() switch
         {
-            HtTop or HtTopLeft or HtTopRight => HandleResizeBorderDoubleClick(keepBottom: true),
-            HtBottom or HtBottomLeft or HtBottomRight => HandleResizeBorderDoubleClick(keepBottom: false),
+            HtTop or HtTopLeft or HtTopRight => HandleResizeBorderDoubleClick(keepBottom: false),
+            HtBottom or HtBottomLeft or HtBottomRight => HandleResizeBorderDoubleClick(keepBottom: true),
             _ => false,
         };
     }
