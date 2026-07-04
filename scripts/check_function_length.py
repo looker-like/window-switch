@@ -142,7 +142,7 @@ def scan_file(path: Path):
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Check C# function length.")
+    parser = argparse.ArgumentParser(description="Check each C# function/method length.")
     parser.add_argument("--max-lines", type=int, default=300)
     parser.add_argument("--root", type=Path, default=Path("."))
     args = parser.parse_args()
@@ -154,10 +154,10 @@ def main() -> int:
                 violations.append(function)
 
     if not violations:
-        print(f"Function length check passed: no function exceeds {args.max_lines} lines.")
+        print(f"Function length check passed: no single function/method exceeds {args.max_lines} lines.")
         return 0
 
-    print(f"Function length check failed: functions exceed {args.max_lines} lines.")
+    print(f"Function length check failed: single functions/methods exceed {args.max_lines} lines.")
     for item in violations:
         print(
             f"{item['path']}:{item['start']} {item['name']} "

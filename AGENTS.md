@@ -25,7 +25,7 @@
 
    任何形式的修改完成后都要及时做细颗粒度提交；不要把多个不相关意图混在同一个提交里。
 
-5. 提交前和提交后都使用本仓库 hook，并把函数长度规则作为固定门禁。仓库已配置：
+5. 提交前和提交后都使用本仓库 hook，并把单个函数长度规则作为固定门禁。仓库已配置：
    - 提交前 hook：`.githooks/pre-commit`
    - 提交后 hook：`.githooks/post-commit`
    - 本机配置：`git config core.hooksPath .githooks`
@@ -37,7 +37,7 @@
    post-commit 当前会执行：
    - `python scripts/check_function_length.py --max-lines 300`
 
-   每次提交都必须遵循细颗粒度提交原则。先提交当前清晰意图；提交完成后由 post-commit 检查代码函数是否超过 300 行。如果存在超过 300 行的函数，立刻进行重构拆分，并用第二次细颗粒度提交记录该重构。
+   每次提交都必须遵循细颗粒度提交原则。先提交当前清晰意图；提交完成后由 post-commit 逐个扫描 `.cs` 文件中的单个函数/方法，检查是否有任一函数/方法超过 300 行。这里不是限制整个代码文件 300 行。如果存在单个函数/方法超过 300 行，立刻进行重构拆分，并用第二次细颗粒度提交记录该重构。
 
 6. 如果提交被运行中的 `WindowSwitch.exe` 锁住，先确认进程路径属于当前仓库，再结束进程后重试：
    - `Get-Process WindowSwitch -ErrorAction SilentlyContinue | Select-Object Id,Path`
