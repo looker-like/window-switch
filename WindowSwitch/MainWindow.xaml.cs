@@ -7,13 +7,11 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Interop;
 using System.Windows.Threading;
 using System.Runtime.InteropServices;
-using System.IO;
 using WindowSwitch.Controls;
 using WindowSwitch.Services;
 using WindowSwitch.ViewModels;
 using WindowsDesktop;
 using Forms = System.Windows.Forms;
-using Drawing = System.Drawing;
 
 namespace WindowSwitch;
 
@@ -106,6 +104,8 @@ public partial class MainWindow : Window
         _mouseHookCallback = MouseHookProc;
 
         InitializeComponent();
+        AppIcons.ApplyTo(this);
+        HeaderAppIcon.Source = AppIcons.ImageSource;
         DataContext = viewModel;
 
         _refreshTimer = new DispatcherTimer(DispatcherPriority.Background, Dispatcher)
@@ -1250,7 +1250,7 @@ public partial class MainWindow : Window
 
         var notifyIcon = new Forms.NotifyIcon
         {
-            Icon = LoadAppIcon(),
+            Icon = AppIcons.CreateNotifyIcon(),
             Text = "WindowSwitch",
             Visible = true,
             ContextMenuStrip = menu,
@@ -1258,12 +1258,6 @@ public partial class MainWindow : Window
 
         notifyIcon.DoubleClick += (_, _) => Dispatcher.Invoke(ShowFromBackground);
         return notifyIcon;
-    }
-
-    private static Drawing.Icon LoadAppIcon()
-    {
-        var iconPath = Path.Combine(AppContext.BaseDirectory, "Assets", "AppIcon.ico");
-        return new Drawing.Icon(iconPath);
     }
 
     private void ExitApplication()
