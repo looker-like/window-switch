@@ -34,10 +34,10 @@
    - `dotnet format WindowSwitch.sln --verify-no-changes --no-restore`
    - `dotnet test WindowSwitch.sln --no-restore`
 
-   post-commit 当前会执行：
+   post-commit 仅在本次提交包含 `.cs` 文件变更时执行：
    - `python scripts/check_code_file_length.py --max-lines 300`
 
-   每次提交都必须遵循细颗粒度提交原则。先提交当前清晰意图；提交完成后由 post-commit 逐个扫描 `.cs` 代码文件，检查是否有任一代码文件超过 300 行。这里不是限制单个函数/方法 300 行。如果存在单个代码文件超过 300 行，立刻进行重构拆分该文件，并用第二次细颗粒度提交记录该重构。
+   每次提交都必须遵循细颗粒度提交原则。先提交当前清晰意图；提交完成后，如果本次提交包含 `.cs` 文件变更，post-commit 会逐个扫描 `.cs` 代码文件，检查是否有任一代码文件超过 300 行。纯文档、配置、资源等不涉及 C# 代码的提交不触发该检查。这里不是限制单个函数/方法 300 行。如果存在单个代码文件超过 300 行，立刻进行重构拆分该文件，并用第二次细颗粒度提交记录该重构。
 
 6. 如果提交被运行中的 `WindowSwitch.exe` 锁住，先确认进程路径属于当前仓库，再结束进程后重试：
    - `Get-Process WindowSwitch -ErrorAction SilentlyContinue | Select-Object Id,Path`
