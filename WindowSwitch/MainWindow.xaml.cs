@@ -360,7 +360,7 @@ public partial class MainWindow : Window
         var statusHeight = StatusBlock.IsVisible
             ? StatusBlock.ActualHeight + StatusBlock.Margin.Top + StatusBlock.Margin.Bottom
             : 0;
-        var overlayHeight = DesktopOverlay.DesiredSize.Height;
+        var overlayHeight = DesktopOverlay.GetRequiredContentHeight();
         var contentMinHeight = Math.Ceiling(chromeVertical + headerHeight + statusHeight + overlayHeight);
         var usableMaxHeight = GetUsableMaxHeight();
         var boundedContentMinHeight = Math.Min(contentMinHeight, usableMaxHeight);

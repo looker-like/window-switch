@@ -151,14 +151,24 @@ public sealed class DesktopOverlayView : FrameworkElement
         return HitTestAction(point);
     }
 
+    public double GetRequiredContentHeight()
+    {
+        return CalculateRequiredContentHeight(_desktops.Count, _actions.Count, Math.Max(1, ColumnsPerRow));
+    }
+
+    public static double CalculateRequiredContentHeight(int desktopCount, int actionCount, int columns)
+    {
+        var normalizedColumns = Math.Max(1, columns);
+        var rows = desktopCount == 0 ? 0 : (int)Math.Ceiling(desktopCount / (double)normalizedColumns);
+        var desktopHeight = rows == 0 ? 0 : rows * DesktopHeight + Math.Max(0, rows - 1) * DesktopGap;
+        var actionHeight = actionCount == 0 ? 0 : SectionGap + ActionHeight;
+        return desktopHeight + actionHeight;
+    }
+
     protected override WpfSize MeasureOverride(WpfSize availableSize)
     {
         var width = double.IsInfinity(availableSize.Width) ? 360 : Math.Max(0, availableSize.Width);
-        var columns = Math.Max(1, ColumnsPerRow);
-        var rows = _desktops.Count == 0 ? 0 : (int)Math.Ceiling(_desktops.Count / (double)columns);
-        var desktopHeight = rows == 0 ? 0 : rows * DesktopHeight + Math.Max(0, rows - 1) * DesktopGap;
-        var actionHeight = _actions.Count == 0 ? 0 : SectionGap + ActionHeight;
-        return new WpfSize(width, desktopHeight + actionHeight);
+        return new WpfSize(width, GetRequiredContentHeight());
     }
 
     protected override void OnMouseMove(WpfMouseEventArgs e)
