@@ -6,5 +6,5 @@ if [ "${SKIP_WINDOWSWITCH_HOOK:-}" = "1" ]; then
   exit 0
 fi
 
-echo "Running WindowSwitch post-commit function length check..."
+echo "Running WindowSwitch post-commit code file length check..."
 python scripts/check_code_file_length.py --max-lines 300
