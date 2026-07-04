@@ -25,6 +25,7 @@ public partial class MainWindow : Window
     private const int HcAction = 0;
     private const int WmHotkey = 0x0312;
     private const int WmNchitTest = 0x0084;
+    private const int WmNcLeftButtonDoubleClick = 0x00A3;
     private const int WmKeyDown = 0x0100;
     private const int WmSysKeyDown = 0x0104;
     private const int WmMouseMove = 0x0200;
@@ -354,6 +355,12 @@ public partial class MainWindow : Window
 
     private void ApplyContentMinHeight()
     {
+        var boundedContentMinHeight = ApplyContentHeightBounds();
+        GrowToFitContent(boundedContentMinHeight);
+    }
+
+    private double ApplyContentHeightBounds()
+    {
         var chromeVertical = RootChrome.Padding.Top + RootChrome.Padding.Bottom +
             RootChrome.BorderThickness.Top + RootChrome.BorderThickness.Bottom;
         var headerHeight = HeaderBar.ActualHeight + HeaderBar.Margin.Top + HeaderBar.Margin.Bottom;
@@ -375,7 +382,7 @@ public partial class MainWindow : Window
             MinHeight = boundedContentMinHeight;
         }
 
-        GrowToFitContent(boundedContentMinHeight);
+        return boundedContentMinHeight;
     }
 
     private double GetUsableMaxHeight()
@@ -404,6 +411,32 @@ public partial class MainWindow : Window
         }
 
         Height = targetHeight;
+        if (Top + targetHeight > workArea.Bottom)
+        {
+            Top = Math.Max(workArea.Top, workArea.Bottom - targetHeight);
+        }
+    }
+
+    private void FitHeightToContent(bool keepBottom)
+    {
+        UpdateLayout();
+        var targetHeight = ApplyContentHeightBounds();
+        if (targetHeight <= 0)
+        {
+            return;
+        }
+
+        var currentHeight = ActualHeight > 0 ? ActualHeight : Height;
+        var bottom = Top + currentHeight;
+        Height = targetHeight;
+
+        var workArea = SystemParameters.WorkArea;
+        if (keepBottom)
+        {
+            Top = Math.Min(Math.Max(bottom - targetHeight, workArea.Top), Math.Max(workArea.Top, workArea.Bottom - targetHeight));
+            return;
+        }
+
         if (Top + targetHeight > workArea.Bottom)
         {
             Top = Math.Max(workArea.Top, workArea.Bottom - targetHeight);
@@ -877,6 +910,12 @@ public partial class MainWindow : Window
             return hitTest;
         }
 
+        if (msg == WmNcLeftButtonDoubleClick && TryHandleResizeBorderDoubleClick(wParam))
+        {
+            handled = true;
+            return IntPtr.Zero;
+        }
+
         if (msg != WmHotkey)
         {
             return IntPtr.Zero;
@@ -895,6 +934,23 @@ public partial class MainWindow : Window
         }
 
         return IntPtr.Zero;
+    }
+
+    private bool TryHandleResizeBorderDoubleClick(IntPtr hitTest)
+    {
+        return hitTest.ToInt32() switch
+        {
+            HtTop or HtTopLeft or HtTopRight => HandleResizeBorderDoubleClick(keepBottom: true),
+            HtBottom or HtBottomLeft or HtBottomRight => HandleResizeBorderDoubleClick(keepBottom: false),
+            _ => false,
+        };
+    }
+
+    private bool HandleResizeBorderDoubleClick(bool keepBottom)
+    {
+        FitHeightToContent(keepBottom);
+        ScheduleSettingsSave();
+        return true;
     }
 
     private bool TryHandleNchitTest(IntPtr lParam, out IntPtr hitTest)
