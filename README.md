@@ -54,34 +54,3 @@ The published output is written under:
 ```text
 WindowSwitch/bin/Release/net8.0-windows10.0.19041.0/win-x64/publish/
 ```
-
-## Development Workflow
-
-This repository uses local Git hooks from `.githooks`.
-
-Configure them once per clone:
-
-```powershell
-git config core.hooksPath .githooks
-```
-
-Pre-commit currently runs formatting and tests:
-
-```powershell
-dotnet format WindowSwitch.sln --verify-no-changes --no-restore
-dotnet test WindowSwitch.sln --no-restore
-```
-
-Post-commit checks that no C# code file exceeds 300 lines:
-
-```powershell
-python scripts/check_code_file_length.py --max-lines 300
-```
-
-If that check fails, split the oversized file and commit the refactor separately.
-
-## Repository Notes
-
-- Build outputs and local artifacts are ignored through `.gitignore`.
-- Do not commit `bin/`, `obj/`, `.vs/`, `TestResults/`, publish output, logs, or temporary files.
-- Keep commits small and focused.
