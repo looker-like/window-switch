@@ -7,5 +7,6 @@ if [ "${SKIP_WINDOWSWITCH_HOOK:-}" = "1" ]; then
 fi
 
 echo "Running WindowSwitch pre-commit checks..."
+python scripts/check_function_length.py --max-lines 300
 dotnet format WindowSwitch.sln --verify-no-changes --no-restore
 dotnet test WindowSwitch.sln --no-restore
