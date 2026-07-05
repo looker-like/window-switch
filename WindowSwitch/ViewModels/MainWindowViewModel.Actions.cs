@@ -18,7 +18,10 @@ public sealed partial class MainWindowViewModel
             {
                 Desktops.Add(desktop);
             }
+
+            OnPropertyChanged(nameof(CurrentDesktopName));
         }
+
         catch (Exception ex)
         {
             Desktops.Clear();

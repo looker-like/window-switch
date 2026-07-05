@@ -57,6 +57,8 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
 
     public ObservableCollection<DesktopButtonViewModel> Desktops { get; } = [];
 
+    public string? CurrentDesktopName => Desktops.FirstOrDefault(d => d.IsCurrent)?.Name;
+
     public IReadOnlyList<VirtualDesktopActionButtonViewModel> VirtualDesktopActions { get; } =
     [
         new(VirtualDesktopAction.OpenTaskView, "\uE7C4", "打开任务视图", "Win + Tab"),
