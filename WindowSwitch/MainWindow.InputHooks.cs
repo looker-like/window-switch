@@ -187,62 +187,12 @@ public partial class MainWindow
 
     private static bool AreRequiredModifiersPressed(int modifiers)
     {
-        var normalized = (HotkeyModifiers)HotkeyDefinitions.NormalizeModifiers(modifiers);
-
-        if (normalized.HasFlag(HotkeyModifiers.Control) && !IsKeyPressed(VkControl))
-        {
-            return false;
-        }
-
-        if (normalized.HasFlag(HotkeyModifiers.Alt) && !IsKeyPressed(VkMenu))
-        {
-            return false;
-        }
-
-        if (normalized.HasFlag(HotkeyModifiers.Shift) && !IsKeyPressed(VkShift))
-        {
-            return false;
-        }
-
-        if (normalized.HasFlag(HotkeyModifiers.Windows) &&
-            !IsKeyPressed(VkLeftWindows) &&
-            !IsKeyPressed(VkRightWindows))
-        {
-            return false;
-        }
-
-        return true;
+        return ModifierKeyHelper.AreRequiredModifiersPressed(modifiers, WinApiModifierKeyState.Instance);
     }
 
     private static int GetPressedHotkeyModifiers()
     {
-        var modifiers = HotkeyModifiers.None;
-        if (IsKeyPressed(VkControl))
-        {
-            modifiers |= HotkeyModifiers.Control;
-        }
-
-        if (IsKeyPressed(VkMenu))
-        {
-            modifiers |= HotkeyModifiers.Alt;
-        }
-
-        if (IsKeyPressed(VkShift))
-        {
-            modifiers |= HotkeyModifiers.Shift;
-        }
-
-        if (IsKeyPressed(VkLeftWindows) || IsKeyPressed(VkRightWindows))
-        {
-            modifiers |= HotkeyModifiers.Windows;
-        }
-
-        return (int)modifiers;
-    }
-
-    private static bool IsKeyPressed(int virtualKey)
-    {
-        return (GetAsyncKeyState(virtualKey) & 0x8000) != 0;
+        return ModifierKeyHelper.GetPressedHotkeyModifiers(WinApiModifierKeyState.Instance);
     }
 
     private void SwitchDesktopFromHotkey(int desktopIndex)
