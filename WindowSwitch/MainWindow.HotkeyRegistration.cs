@@ -60,18 +60,8 @@ public partial class MainWindow
             registeredHotkeys.Add($"{_viewModel.DesktopHotkeyText}（0=第10桌面，支持两位）");
         }
 
-        if (failedHotkeys.Count > 0)
-        {
-            _viewModel.SetHotkeyStatus($"快捷键冲突：{string.Join(", ", failedHotkeys)} 已被其他应用占用或被系统保留。");
-        }
-        else if (registeredHotkeys.Count > 0)
-        {
-            _viewModel.SetHotkeyStatus($"快捷键可用：{string.Join("；", registeredHotkeys)}");
-        }
-        else
-        {
-            _viewModel.SetHotkeyStatus(string.Empty);
-        }
+        _viewModel.SetHotkeyStatus(HotkeyStatusComposer.Compose(registeredHotkeys, failedHotkeys));
+
 
         UpdateInputHookLifetime();
     }
