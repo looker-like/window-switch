@@ -60,3 +60,80 @@
     - `git reset --hard`
     - `git checkout -- <path>`
     - 任何会丢弃未提交改动的命令
+
+## TDD 方法论规范
+
+> 所有重构与新功能开发，必须严格遵循 TDD（测试驱动开发）循环。
+
+### 核心循环：Red → Green → Refactor
+
+每一个最小可交付单元都必须经历完整的三步循环，不可跳过任何阶段：
+
+1. **Red（红灯）** — 先写一个**失败的测试**
+   - 测试必须描述**期望的行为**，而非当前实现
+   - 运行 `dotnet test` 确认测试确实**失败**（不是编译错误，是断言失败）
+   - 如果测试因编译错误而失败，需先写最少的 stub 让其能编译并运行到失败断言
+   - 禁止在没有失败测试的情况下直接修改生产代码
+
+2. **Green（绿灯）** — 写**最少的生产代码**让测试通过
+   - 只写恰好能让测试通过的代码，不多一行
+   - 不允许在此阶段进行架构优化或"顺手"重构
+   - 运行 `dotnet test` 确认**所有测试通过**（绿灯）
+
+3. **Refactor（重构）** — 在绿灯状态下改善代码结构
+   - 消除重复、改善命名、提取方法/类
+   - 每次小重构后立即运行 `dotnet test` 确认仍是绿灯
+   - 重构不改变可观测行为，只改善内部结构
+
+### 提交策略与循环对应
+
+- **Red 阶段提交**：提交信息前缀 `test:` — 仅包含失败测试（允许临时 stub）
+  - 示例：`test: HotkeySequence 忽略超时后的按键`
+- **Green 阶段提交**：提交信息前缀 `feat:` 或 `fix:` — 生产代码让测试变绿
+  - 示例：`feat: 实现 HotkeySequence 超时重置逻辑`
+- **Refactor 阶段提交**：提交信息前缀 `refactor:` — 结构改善，不改变行为
+  - 示例：`refactor: 提取 ResetSequenceState 方法`
+
+每个 TDD 循环对应 2–3 次细粒度 Git 提交（Red + Green + 可选 Refactor）。
+
+### 测试命名规范
+
+测试方法名必须体现**被测场景**，格式为：
+
+```
+[被测方法或行为]_[触发条件]_[期望结果]
+```
+
+示例：
+- `ProcessKey_WhenTimeoutExpired_ResetsSequence`
+- `SwitchDesktop_GivenInvalidIndex_DoesNotThrow`
+- `ViewModel_WhenSettingsLoaded_PopulatesHotkeyList`
+
+### 测试组织原则
+
+- 每个测试文件对应一个被测类（`FooTests.cs` 测 `Foo.cs`）
+- 使用 `Arrange / Act / Assert` 注释块区分三个阶段（复杂用例）
+- 一个测试只验证**一个行为**；禁止在单个 `[Fact]` 中混合多个断言意图
+- Fake/Mock 放在独立文件（如现有的 `FakeVirtualDesktopService.cs`），不内嵌在测试方法中
+- 测试项目不引用 UI 层（WPF/XAML）；如需测试 ViewModel，通过接口或内存实现隔离
+
+### 重构时的 TDD 约束
+
+- **不允许在没有覆盖测试的情况下重构生产代码**
+  - 若目标代码缺少测试覆盖，必须先补充测试（Red→Green），再重构
+- **重构步骤必须保持测试始终绿灯**
+  - 每次提取方法、移动类、改名后立即运行 `dotnet test`
+  - 如果重构导致测试红灯，立即回滚该步骤
+- **禁止"一次性大重构"**
+  - 每次重构只做一件事（单一职责原则在重构步骤上同样适用）
+
+### 每日 TDD 工作节奏
+
+```
+开始任务 → [Red] 写失败测试 → 提交 test:
+         → [Green] 最小实现 → 提交 feat:/fix:
+         → [Refactor] 改善结构 → 提交 refactor:（可选）
+         → 下一个行为 → 重复循环
+```
+
+任何时刻，运行 `dotnet test` 应该是你的第一反应，而不是最后一步。
