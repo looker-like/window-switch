@@ -146,29 +146,9 @@ public partial class MainWindow
         out bool isDown,
         out bool isUp)
     {
-        isDown = message is WmRightButtonDown or WmMiddleButtonDown or WmXButtonDown;
-        isUp = message is WmRightButtonUp or WmMiddleButtonUp or WmXButtonUp;
-        button = MouseHotkeyButton.Middle;
-
-        switch (message)
-        {
-            case WmRightButtonDown:
-            case WmRightButtonUp:
-                button = MouseHotkeyButton.Right;
-                return true;
-            case WmMiddleButtonDown:
-            case WmMiddleButtonUp:
-                button = MouseHotkeyButton.Middle;
-                return true;
-            case WmXButtonDown:
-            case WmXButtonUp:
-                var xButton = (mouseData >> 16) & 0xFFFF;
-                button = xButton == XButton2 ? MouseHotkeyButton.XButton2 : MouseHotkeyButton.XButton1;
-                return xButton is XButton1 or XButton2;
-            default:
-                return false;
-        }
+        return MouseButtonMapper.TryMap(message, mouseData, out button, out isDown, out isUp);
     }
+
 
     private void HandleDesktopHotkeyDigit(int digit)
     {
