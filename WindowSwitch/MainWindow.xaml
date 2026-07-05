@@ -103,7 +103,7 @@
                                FontSize="13"
                                FontWeight="SemiBold"
                                Foreground="#2F3A4A" />
-                    <TextBlock Text="{Binding CurrentDesktopName, StringFormat=' / \{0\}'}"
+                    <TextBlock Text="{Binding CurrentDesktopName, StringFormat=' / {0}'}"
                                Margin="5,1,0,0"
                                FontSize="11"
                                Foreground="#64748B" />
