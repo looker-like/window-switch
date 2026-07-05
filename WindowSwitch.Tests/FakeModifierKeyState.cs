@@ -11,7 +11,7 @@ internal sealed class FakeModifierKeyState : IModifierKeyState
 
     public FakeModifierKeyState(params int[] pressedVirtualKeys)
     {
-        _pressedKeys = [..pressedVirtualKeys];
+        _pressedKeys = [.. pressedVirtualKeys];
     }
 
     public bool IsPressed(int virtualKey) => _pressedKeys.Contains(virtualKey);
